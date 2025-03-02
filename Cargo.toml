@@ -1,14 +1,15 @@
 [workspace]
 resolver = "2"
 
-members = ["indexer", "types", "client"]
+members = ["indexer", "types", "client", "oracle"]
 
 [workspace.package]
 version = "0.1.0"
 
 [workspace.dependencies]
 # workspace
-titan-types = { version = "0.1.19" }
+titan-types = { path = "types" }
+titan-client = { path = "client" }
 
 async-trait = "0.1.86"
 axum = "0.8.1"
@@ -33,10 +34,11 @@ serde = "1.0.216"
 serde_json = "1.0.133"
 serde_with = "3.11.0"
 thiserror = "2.0.8"
-tokio = { version = "1.38.0", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1.38.0", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
 tower-http = { version = "0.6.2", features = ["compression-br", "compression-gzip", "cors"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.19"
 uuid = { version = "1.12.1", features = ["borsh", "serde", "v4"] }
 async_zmq = "0.4.0"
 rand = "0.9.0"
+arch_sdk = "0.3.2"
