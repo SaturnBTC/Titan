@@ -18,8 +18,7 @@ pub async fn fetch_state(
     verbose_logging: bool,
 ) -> Result<MempoolOracleState> {
     // Fetch account data from the blockchain
-    let account_info: AccountInfoResult =
-        read_account_info(arch_api_endpoint, mempool_account)?;
+    let account_info: AccountInfoResult = read_account_info(arch_api_endpoint, mempool_account)?;
 
     if verbose_logging {
         debug!("Account info retrieved: {} bytes", account_info.data.len());
