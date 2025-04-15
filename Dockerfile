@@ -6,7 +6,7 @@ RUN cargo build --release
 
 
 FROM debian:bookworm-slim AS runner
-RUN apt-get update && apt-get install -y libssl3 librocksdb7.8
+RUN apt-get update && apt-get install -y libssl3 librocksdb7.8 ca-certificates
 RUN useradd -ms /bin/bash titan
 USER titan
 WORKDIR /home/titan
