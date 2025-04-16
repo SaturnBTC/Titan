@@ -13,3 +13,5 @@
 events.log
 
 /titan_data
+/btcd_data
+.env

@@ -1,51 +1,65 @@
+version: "3.8"
+
 services:
   titan:
-    image: titan-titan
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     depends_on:
-      - bitcoind
+      bitcoind:
+        condition: service_healthy
     ports:
-      - 0.0.0.0:8080:8080
-      - 0.0.0.0:3030:3030
-    entrypoint: /home/titan/titan
-    environment:
-      - RUST_BACKTRACE=full
+      - 0.0.0.0:${TITAN_TCP_PORT}:${TITAN_TCP_PORT}
+      - 0.0.0.0:${TITAN_HTTP_PORT}:${TITAN_HTTP_PORT}
     networks:
       titan-network:
         ipv4_address: 172.28.0.2
-    command: |
-      --data-dir=/home/titan/data
-      --chain=regtest
-      --bitcoin-rpc-url=http://172.28.0.1:18443
-      --bitcoin-rpc-username=bitcoin
-      --bitcoin-rpc-password=bitcoinpass
-      --tcp-address=0.0.0.0:8080
-      --enable-tcp-subscriptions
+    environment:
+      - COMMIT_INTERVAL=${COMMIT_INTERVAL}
+      - BITCOIN_RPC_URL=http://bitcoind:${BITCOIN_RPC_PORT}
+      - BITCOIN_RPC_USERNAME=${BITCOIN_RPC_USERNAME}
+      - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD}
+      - CHAIN=${BITCOIN_NETWORK}
+      - HTTP_LISTEN=0.0.0.0:${TITAN_HTTP_PORT}
+      - TCP_ADDRESS=0.0.0.0:${TITAN_TCP_PORT}
     volumes:
       # make sure titan_data is owned by userid 1000!
       # run: sudo chown -R 1000:1000 ./titan_data
       - "./titan_data:/home/titan/data"
-      - "./btcd_data:/var/lib/bitcoin-core"
 
   bitcoind:
     image: bitcoin/bitcoin
     ports:
-      - 0.0.0.0:18443:18443
+      - 0.0.0.0:${BITCOIN_RPC_PORT}:${BITCOIN_RPC_PORT}
     volumes:
       - "./btcd_data:/var/lib/bitcoin-core"
-    environment:
-      - BITCOIN_DATA=/var/lib/bitcoin-core
     networks:
       titan-network:
         ipv4_address: 172.28.0.3
     command: |
-      -regtest=1
+      -${BITCOIN_NETWORK}
       -rpcallowip=0.0.0.0/0
       -datadir=/var/lib/bitcoin-core
       -rpcbind=bitcoind
-      -printtoconsole
-      -rpcauth=bitcoin:fdd4aa9e420497f24745c7f06d9f2661$26322984e7d07e2e40b8df79dce78eabe8c891c956a10a3e6ceaac7df4cfa9cb
+      -rpcuser=${BITCOIN_RPC_USERNAME}
+      -rpcpassword=${BITCOIN_RPC_PASSWORD}
       -fallbackfee=0.00000001
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bitcoin-cli",
+          "-${BITCOIN_NETWORK}",
+          "-rpcconnect=bitcoind",
+          "-rpcport=${BITCOIN_RPC_PORT}",
+          "-rpcuser=${BITCOIN_RPC_USERNAME}",
+          "-rpcpassword=${BITCOIN_RPC_PASSWORD}",
+          "getblockchaininfo",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 networks:
   titan-network:
