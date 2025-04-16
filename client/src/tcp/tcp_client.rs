@@ -12,7 +12,7 @@ use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::tcp::{
     connection_status::ConnectionStatus,
@@ -35,7 +35,7 @@ pub enum TcpClientError {
 
 /// Settings for reconnecting.
 #[derive(Debug, Clone)]
-pub struct ReconnectSettings {
+pub struct Config {
     /// Maximum number of reconnect attempts. Use `None` for unlimited retries.
     pub max_retries: Option<u32>,
     /// Delay between reconnect attempts.
@@ -44,15 +44,21 @@ pub struct ReconnectSettings {
     pub read_buffer_capacity: usize,
     /// Maximum allowed size for the read buffer (in bytes)
     pub max_buffer_size: usize,
+    /// Interval between ping messages
+    pub ping_interval: Duration,
+    /// Timeout for waiting for pong responses
+    pub pong_timeout: Duration,
 }
 
-impl Default for ReconnectSettings {
+impl Default for Config {
     fn default() -> Self {
         Self {
             max_retries: None,
             retry_delay: Duration::from_secs(1), // Match the default used by ReconnectionConfig
             read_buffer_capacity: 4096,          // 4KB initial capacity
             max_buffer_size: 10 * 1024 * 1024,   // 10MB max buffer size (same as sync client)
+            ping_interval: Duration::from_secs(30), // Send ping every 30 seconds
+            pong_timeout: Duration::from_secs(10), // Wait 10 seconds for pong response
         }
     }
 }
@@ -81,17 +87,17 @@ impl ShutdownChannel {
 /// Asynchronous TCP client that encapsulates the shutdown signal and reconnect settings.
 pub struct AsyncTcpClient {
     shutdown_channel: Arc<Mutex<ShutdownChannel>>,
-    reconnect_settings: ReconnectSettings,
+    config: Config,
     status_tracker: ConnectionStatusTracker,
     worker_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl AsyncTcpClient {
     /// Creates a new instance with custom reconnect settings.
-    pub fn new_with_reconnect_settings(reconnect_settings: ReconnectSettings) -> Self {
+    pub fn new_with_config(config: Config) -> Self {
         Self {
             shutdown_channel: Arc::new(Mutex::new(ShutdownChannel::new())),
-            reconnect_settings,
+            config,
             status_tracker: ConnectionStatusTracker::new(),
             worker_task: Mutex::new(None),
         }
@@ -100,7 +106,7 @@ impl AsyncTcpClient {
     /// Creates a new instance with default reconnect settings:
     /// unlimited retries with a 1-second base delay that increases with exponential backoff.
     pub fn new() -> Self {
-        Self::new_with_reconnect_settings(ReconnectSettings::default())
+        Self::new_with_config(Config::default())
     }
 
     /// Get the current connection status
@@ -179,7 +185,7 @@ impl AsyncTcpClient {
         let (tx, rx) = mpsc::channel::<Event>(100);
 
         // Clone the settings and shutdown receiver for the spawned task.
-        let reconnect_settings = self.reconnect_settings.clone();
+        let reconnect_settings = self.config.clone();
         let shutdown_receiver = {
             let guard = self
                 .shutdown_channel
@@ -210,6 +216,14 @@ impl AsyncTcpClient {
             // Use the shutdown receiver
             let mut shutdown_rx = shutdown_receiver;
 
+            // Ping-pong monitoring
+            let ping_interval = reconnect_settings.ping_interval;
+            let pong_timeout = reconnect_settings.pong_timeout;
+            let mut last_pong_time = std::time::Instant::now();
+            let mut ping_timer = tokio::time::interval(ping_interval);
+            ping_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            let mut awaiting_pong = false;
+
             loop {
                 // Before each connection attempt, check for a shutdown signal.
                 if shutdown_rx.has_changed().unwrap_or(false) {
@@ -230,6 +244,14 @@ impl AsyncTcpClient {
 
                         let (reader, mut writer) = stream.into_split();
                         let mut reader = BufReader::new(reader);
+
+                        // Ping-pong monitoring
+                        let ping_interval = reconnect_settings.ping_interval;
+                        let pong_timeout = reconnect_settings.pong_timeout;
+                        let mut last_pong_time = std::time::Instant::now();
+                        let mut ping_timer = tokio::time::interval(ping_interval);
+                        ping_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                        let mut awaiting_pong = false;
 
                         // Serialize and send the subscription request.
                         match serde_json::to_string(&subscription_request) {
@@ -279,47 +301,95 @@ impl AsyncTcpClient {
                                             update_status(ConnectionStatus::Reconnecting);
                                             break;
                                         }
-                                        Ok(_n) => {
-                                            read_in_progress = false;
-                                            let trimmed = line.trim();
-                                            if trimmed.is_empty() {
-                                                continue;
-                                            }
+                                        Ok(n) => {
+                                            // We got some data - check if it's a complete line
+                                            if line.ends_with('\n') {
+                                                // We have a complete line
+                                                read_in_progress = false;
+                                                let trimmed = line.trim();
 
-                                            // Check if line is too large before attempting to parse
-                                            if trimmed.len() > reconnect_settings.max_buffer_size {
-                                                error!(
-                                                    "Received line exceeds maximum allowed size ({}), skipping.",
-                                                    reconnect_settings.max_buffer_size
-                                                );
-                                                line.clear();
-                                                continue;
-                                            }
-
-                                            match serde_json::from_str::<Event>(trimmed) {
-                                                Ok(event) => {
-                                                    if let Err(e) = tx.send(event).await {
-                                                        error!("Failed to send event to channel: {}", e);
-                                                        break;
+                                                if !trimmed.is_empty() {
+                                                    // Check if this is a pong response
+                                                    if trimmed == "PONG" {
+                                                        if awaiting_pong {
+                                                            awaiting_pong = false;
+                                                            last_pong_time = std::time::Instant::now();
+                                                        }
+                                                    } else {
+                                                        // Check if line is too large before attempting to parse
+                                                        if trimmed.len() > reconnect_settings.max_buffer_size {
+                                                            error!(
+                                                                "Received line exceeds maximum allowed size ({}), skipping.",
+                                                                reconnect_settings.max_buffer_size
+                                                            );
+                                                        } else {
+                                                            // Try to parse as an event
+                                                            match serde_json::from_str::<Event>(trimmed) {
+                                                                Ok(event) => {
+                                                                    // Every successful message resets pong timer since we know
+                                                                    // the connection is alive
+                                                                    last_pong_time = std::time::Instant::now();
+                                                                    if let Err(e) = tx.send(event).await {
+                                                                        error!("Failed to send event to channel: {}", e);
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("Failed to parse event: {}. Line: {}", e, trimmed);
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
-                                                Err(e) => {
-                                                    error!("Failed to parse event: {}. Line: {}", e, trimmed);
-                                                }
+
+                                                // Clear the line buffer after processing a complete line
+                                                line.clear();
+                                            } else {
+                                                // Partial line (without newline terminator)
+                                                read_in_progress = true;
+                                                debug!("Partial read in progress ({} bytes so far), waiting for more data", line.len());
                                             }
-                                            // Clear the line buffer after processing.
-                                            line.clear();
                                         }
                                         Err(e) => {
                                             error!("Error reading from TCP socket: {}", e);
+                                            // Keep track of partial reads, but don't spam logs
                                             if !line.is_empty() {
                                                 read_in_progress = true;
-                                                info!("Partial read in progress ({} bytes so far), will continue", line.len());
+                                                debug!("Partial read in progress ({} bytes so far) when error occurred", line.len());
                                             } else {
                                                 read_in_progress = false;
                                             }
                                             // Add a small delay before retrying on error.
                                             tokio::time::sleep(Duration::from_millis(100)).await;
+                                        }
+                                    }
+                                }
+                                _ = ping_timer.tick() => {
+                                    // Time to send a ping
+                                    if awaiting_pong {
+                                        // We're still waiting for a pong from the previous ping
+                                        let elapsed = last_pong_time.elapsed();
+                                        if elapsed > pong_timeout {
+                                            warn!("Pong response timed out after {:?}, considering connection dead", elapsed);
+                                            update_status(ConnectionStatus::Reconnecting);
+                                            break;
+                                        }
+                                    } else {
+                                        // Send a ping
+                                        match writer.write_all(b"PING\n").await {
+                                            Ok(_) => {
+                                                if let Err(e) = writer.flush().await {
+                                                    error!("Failed to flush ping: {}", e);
+                                                    update_status(ConnectionStatus::Reconnecting);
+                                                    break;
+                                                }
+                                                awaiting_pong = true;
+                                            }
+                                            Err(e) => {
+                                                error!("Failed to send ping: {}", e);
+                                                update_status(ConnectionStatus::Reconnecting);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -585,11 +655,13 @@ mod tests {
         info!("Starting test_shutdown_and_join");
 
         // Create a TCP client with a mock server (that doesn't exist)
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(2),                    // Limit retries for quicker test
             retry_delay: Duration::from_millis(100), // Short delay for quicker test
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Subscribe to a non-existent server - this will keep retrying
@@ -628,11 +700,13 @@ mod tests {
         info!("Starting test_multiple_subscribes");
 
         // Create a TCP client
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(1),                    // Limit retries for quicker test
             retry_delay: Duration::from_millis(100), // Short delay for quicker test
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // First subscription
@@ -679,11 +753,13 @@ mod tests {
         let (server_handle, server_addr, shutdown_tx) = start_async_test_server().await;
 
         // Create a client
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(2),
             retry_delay: Duration::from_millis(100),
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Initially disconnected
@@ -741,11 +817,13 @@ mod tests {
         info!("Test server started at {}", server_addr);
 
         // Create a client
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(2),
             retry_delay: Duration::from_millis(100),
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Subscribe to the server
@@ -826,11 +904,13 @@ mod tests {
         info!("Starting test_async_connection_error_handling");
 
         // Create a client with short timeout
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(2),
             retry_delay: Duration::from_millis(100),
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Initially disconnected
@@ -880,11 +960,13 @@ mod tests {
 
         // Create a client with many more retries and a longer delay to ensure we
         // have time to catch it in the reconnecting state
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(100), // Many more retries so it won't finish quickly
             retry_delay: Duration::from_millis(500), // Longer delay between attempts
             read_buffer_capacity: 4096,
             max_buffer_size: 10 * 1024 * 1024,
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Subscribe to a non-existent server to trigger reconnection attempts
@@ -1002,11 +1084,13 @@ mod tests {
 
         // Create a client with a very small buffer size
         info!("Creating client with small buffer size");
-        let client = AsyncTcpClient::new_with_reconnect_settings(ReconnectSettings {
+        let client = AsyncTcpClient::new_with_config(Config {
             max_retries: Some(1),
             retry_delay: Duration::from_millis(100),
             read_buffer_capacity: 1024, // 1KB initial capacity
             max_buffer_size: 10 * 1024, // Only 10KB max buffer size
+            ping_interval: Duration::from_secs(30),
+            pong_timeout: Duration::from_secs(10),
         });
 
         // Subscribe to the server

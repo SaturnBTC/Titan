@@ -133,7 +133,7 @@ pub fn from_tcp_client_config(config: &tcp_client_blocking::TcpClientConfig) -> 
 
 /// Convert from the async client's ReconnectSettings to ReconnectionConfig
 pub fn from_async_reconnect_settings(
-    settings: &tcp_client::ReconnectSettings,
+    settings: &tcp_client::Config,
 ) -> ReconnectionConfig {
     ReconnectionConfig {
         base_interval: settings.retry_delay,

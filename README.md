@@ -8,7 +8,7 @@ Titan is a next-gen Bitcoin indexer by Saturn, designed for real-time blockchain
 - Real-Time Blockchain Access – Instant data retrieval for responsive applications.
 - Scalable & Lightweight – High throughput with minimal computational overhead.
 - Advanced Runes Integration – Native support for Runes tokens, instant token data, and secure transaction validation.
-- Mempool-Level Indexing – Differentiates finalized transactions from those at risk of front-running.
+- Mempool-Level Indexing for Runes – Differentiates pending vs confirmed runes in outputs from transactions in the mempool. 
 
 ## Requirements
 

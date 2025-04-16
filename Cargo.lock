@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "titan-client"
-version = "0.1.32"
+version = "0.1.36"
 dependencies = [
  "async-trait",
  "bitcoin",

@@ -12,7 +12,7 @@ use std::{
 use serde_json;
 use thiserror::Error;
 use titan_types::{Event, TcpSubscriptionRequest};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::tcp::reconnection::ReconnectionManager;
 
@@ -46,6 +46,10 @@ pub struct TcpClientConfig {
     pub read_buffer_capacity: usize,
     /// Maximum allowed size for the read buffer (in bytes)
     pub max_buffer_size: usize,
+    /// Interval between ping messages
+    pub ping_interval: Duration,
+    /// Timeout for waiting for pong responses
+    pub pong_timeout: Duration,
 }
 
 impl Default for TcpClientConfig {
@@ -55,8 +59,10 @@ impl Default for TcpClientConfig {
             max_reconnect_interval: Duration::from_secs(60),
             max_reconnect_attempts: None,
             connection_timeout: Duration::from_secs(30),
-            read_buffer_capacity: 4096,        // 4KB initial capacity
-            max_buffer_size: 10 * 1024 * 1024, // 10MB max buffer size
+            read_buffer_capacity: 4096,             // 4KB initial capacity
+            max_buffer_size: 10 * 1024 * 1024,      // 10MB max buffer size
+            ping_interval: Duration::from_secs(30), // Send ping every 30 seconds
+            pong_timeout: Duration::from_secs(10),  // Wait 10 seconds for pong response
         }
     }
 }
@@ -297,7 +303,7 @@ fn subscribe(
                     // Reset reconnection attempts after successful connection
                     reconnection_manager.reset();
 
-                    // Set read timeout
+                    // Set read timeout - use shorter timeout to allow for ping checks
                     if let Err(e) = stream.set_read_timeout(Some(Duration::from_millis(500))) {
                         error!("Failed to set read timeout: {}", e);
                         continue;
@@ -344,7 +350,13 @@ fn subscribe(
                     // Initialize the line buffer with the configured capacity
                     let mut line = String::with_capacity(config.read_buffer_capacity);
                     let mut read_in_progress = false;
-                    // Inner loop: read events from the connection.
+
+                    // Ping-pong state tracking
+                    let mut last_ping_time = std::time::Instant::now();
+                    let mut last_pong_time = std::time::Instant::now();
+                    let mut awaiting_pong = false;
+
+                    // Inner loop: read events from the connection with ping/pong support
                     loop {
                         if shutdown_flag.load(Ordering::SeqCst) {
                             info!("Shutdown flag set. Exiting inner read loop.");
@@ -352,67 +364,138 @@ fn subscribe(
                             update_status(ConnectionStatus::Disconnected);
                             break;
                         }
-                        if !read_in_progress {
-                            line.clear();
+
+                        // Current time
+                        let now = std::time::Instant::now();
+
+                        // Handle ping-pong logic
+                        if now.duration_since(last_ping_time) >= config.ping_interval {
+                            if awaiting_pong {
+                                // Check if we've exceeded the pong timeout
+                                if now.duration_since(last_pong_time) >= config.pong_timeout {
+                                    warn!("Pong response timed out after {:?}, considering connection dead", 
+                                          now.duration_since(last_pong_time));
+                                    update_status(ConnectionStatus::Reconnecting);
+                                    break;
+                                }
+                            } else {
+                                // Time to send a ping
+                                match stream.write_all(b"PING\n") {
+                                    Ok(_) => {
+                                        if let Err(e) = stream.flush() {
+                                            error!("Failed to flush after PING: {}", e);
+                                            update_status(ConnectionStatus::Reconnecting);
+                                            break;
+                                        }
+                                        last_ping_time = now;
+                                        awaiting_pong = true;
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to send PING: {}", e);
+                                        update_status(ConnectionStatus::Reconnecting);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Set a shorter read timeout to ensure we can send pings on time
+                        // This is critical - we use a very short timeout (50ms) so we can check ping state frequently
+                        if let Err(e) = stream.set_read_timeout(Some(Duration::from_millis(50))) {
+                            error!("Failed to set read timeout: {}", e);
+                            update_status(ConnectionStatus::Reconnecting);
+                            break;
+                        }
+
+                        // Use a temporary buffer for the current read attempt
+                        let mut temp_buffer = String::new();
+
+                        // Try to read, and handle timeout as normal operation
+                        match reader.read_line(&mut temp_buffer) {
+                            Ok(0) => {
+                                // Connection closed by server
+                                warn!("TCP connection closed by server. Attempting to reconnect.");
+                                update_status(ConnectionStatus::Reconnecting);
+                                break;
+                            }
+                            Ok(n) => {
+                                // Successful read of n bytes
+                                if n > 0 {
+                                    if read_in_progress {
+                                        // We were waiting for more data, append to existing line
+                                        line.push_str(&temp_buffer);
+                                    } else {
+                                        // Start a new line
+                                        line = temp_buffer;
+                                    }
+
+                                    // Check if we have a complete line (ends with newline)
+                                    if line.ends_with('\n') {
+                                        // Complete line received, process it
+                                        read_in_progress = false;
+                                        let trimmed = line.trim();
+
+                                        if !trimmed.is_empty() {
+                                            // Check if this is a PONG response
+                                            if trimmed == "PONG" {
+                                                if awaiting_pong {
+                                                    awaiting_pong = false;
+                                                    last_pong_time = std::time::Instant::now();
+                                                }
+                                            } else {
+                                                // Try to parse as an event
+                                                match serde_json::from_str::<Event>(trimmed) {
+                                                    Ok(event) => {
+                                                        // Any successful message means the connection is alive
+                                                        last_pong_time = std::time::Instant::now();
+
+                                                        if tx.send(event).is_err() {
+                                                            error!("Receiver dropped. Exiting subscription thread.");
+                                                            return;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        error!(
+                                                            "Failed to parse event: {}. Line: {}",
+                                                            e, trimmed
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Clear the line for the next read
+                                        line.clear();
+                                    } else {
+                                        // Incomplete line, note that we're waiting for more data
+                                        read_in_progress = true;
+                                        debug!("Partial read in progress ({} bytes so far), continuing...", line.len());
+                                    }
+                                }
+                                // else: Empty read, continue
+                            }
+                            Err(e) => {
+                                if e.kind() == std::io::ErrorKind::TimedOut
+                                    || e.kind() == std::io::ErrorKind::WouldBlock
+                                {
+                                    // This is expected - just a timeout to let us check ping state
+                                    // Don't log anything for timeout errors during normal operation
+                                    continue;
+                                } else {
+                                    // Real error
+                                    error!("Error reading from TCP socket: {}", e);
+                                    read_in_progress = false;
+                                    thread::sleep(Duration::from_millis(100));
+                                    update_status(ConnectionStatus::Reconnecting);
+                                    break;
+                                }
+                            }
                         }
 
                         // Check if the buffer has grown too large
                         if line.len() > config.max_buffer_size {
                             error!("Buffer capacity exceeded maximum allowed size ({}), resetting connection.", config.max_buffer_size);
                             break;
-                        }
-
-                        match reader.read_line(&mut line) {
-                            Ok(0) => {
-                                // Connection closed by server.
-                                warn!("TCP connection closed by server. Attempting to reconnect.");
-                                // Update status to reconnecting
-                                update_status(ConnectionStatus::Reconnecting);
-                                break;
-                            }
-                            Ok(_) => {
-                                read_in_progress = false;
-                                let trimmed = line.trim();
-                                if trimmed.is_empty() {
-                                    continue;
-                                }
-                                match serde_json::from_str::<Event>(trimmed) {
-                                    Ok(event) => {
-                                        if tx.send(event).is_err() {
-                                            error!(
-                                                "Receiver dropped. Exiting subscription thread."
-                                            );
-                                            return;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to parse event: {}. Line: {}", e, trimmed);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                if e.kind() == std::io::ErrorKind::TimedOut
-                                    || e.kind() == std::io::ErrorKind::WouldBlock
-                                {
-                                    // These are normal timeout errors during idle periods
-                                    if !line.is_empty() {
-                                        read_in_progress = true;
-                                        info!(
-                                            "Partial read in progress ({} bytes so far), continuing...",
-                                            line.len()
-                                        );
-                                    }
-                                    continue;
-                                } else {
-                                    error!("Error reading from TCP socket: {}", e);
-                                    read_in_progress = false;
-                                    // For unexpected errors, add a small delay.
-                                    thread::sleep(Duration::from_millis(100));
-                                    // Update status to reconnecting
-                                    update_status(ConnectionStatus::Reconnecting);
-                                    break;
-                                }
-                            }
                         }
                     } // end inner loop for current connection
 
@@ -674,5 +757,155 @@ mod tests {
 
         // Verify we no longer have an active thread
         assert!(!client.has_active_thread());
+    }
+
+    // Helper function to create a test TCP server that handles ping/pong
+    fn start_ping_pong_server(ready_tx: std::sync::mpsc::Sender<SocketAddr>) -> JoinHandle<()> {
+        thread::spawn(move || {
+            // Bind to a random available port
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            // Notify the test that we're ready and send the address
+            ready_tx.send(addr).unwrap();
+
+            // Accept one connection
+            if let Ok((mut stream, _)) = listener.accept() {
+                // Set a read timeout so we don't block forever
+                stream
+                    .set_read_timeout(Some(Duration::from_millis(200)))
+                    .unwrap();
+
+                // Create a buffer reader
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+
+                // Read the subscription request
+                match reader.read_line(&mut line) {
+                    Ok(n) if n > 0 => {
+                        println!("Ping-pong server received request: {}", line.trim());
+
+                        // Send a sample event
+                        let event = r#"{"type":"TransactionsAdded","data": {"txids":["1111111111111111111111111111111111111111111111111111111111111111"]}}"#;
+                        stream.write_all(event.as_bytes()).unwrap();
+                        stream.write_all(b"\n").unwrap();
+                        stream.flush().unwrap();
+                        println!("Ping-pong server sent initial event");
+                    }
+                    _ => {
+                        println!("Ping-pong server failed to read subscription request");
+                        return;
+                    }
+                }
+
+                // Clear line for next reads
+                line.clear();
+
+                // Keep handling ping/pong for a while
+                let start = std::time::Instant::now();
+                let timeout = Duration::from_secs(5); // Run for 5 seconds
+
+                while start.elapsed() < timeout {
+                    match reader.read_line(&mut line) {
+                        Ok(n) => {
+                            if n == 0 {
+                                println!("Ping-pong server: client closed connection");
+                                break;
+                            } else if n > 0 {
+                                let trimmed = line.trim();
+                                println!("Ping-pong server received: {}", trimmed);
+
+                                if trimmed == "PING" {
+                                    println!("Ping-pong server sending PONG");
+                                    if let Err(e) = stream.write_all(b"PONG\n") {
+                                        println!("Ping-pong server failed to send PONG: {}", e);
+                                        break;
+                                    }
+                                    if let Err(e) = stream.flush() {
+                                        println!("Ping-pong server failed to flush: {}", e);
+                                        break;
+                                    }
+                                }
+
+                                line.clear();
+                            }
+                        }
+                        Err(e)
+                            if e.kind() == std::io::ErrorKind::WouldBlock
+                                || e.kind() == std::io::ErrorKind::TimedOut =>
+                        {
+                            // Expected timeout - continue
+                        }
+                        Err(e) => {
+                            println!("Ping-pong server error: {}", e);
+                            break;
+                        }
+                    }
+
+                    // Small sleep to prevent tight loop
+                    thread::sleep(Duration::from_millis(50));
+                }
+
+                println!("Ping-pong server shutting down");
+            }
+        })
+    }
+
+    #[test]
+    fn test_ping_pong_mechanism() {
+        // Create a channel to sync with the test server
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+
+        // Start a ping-pong test server
+        let server_handle = start_ping_pong_server(ready_tx);
+
+        // Wait for the server to be ready and get its address
+        let server_addr = ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+
+        // Create a client with short ping interval for faster testing
+        let config = TcpClientConfig {
+            connection_timeout: Duration::from_secs(1),
+            max_reconnect_attempts: Some(1),
+            base_reconnect_interval: Duration::from_millis(100),
+            ping_interval: Duration::from_millis(500), // Short ping interval for testing
+            pong_timeout: Duration::from_millis(1000), // 1 second timeout
+            ..TcpClientConfig::default()
+        };
+        let client = TcpClient::new(config);
+
+        // Subscribe to receive events
+        let subscription_request = TcpSubscriptionRequest {
+            subscribe: vec![EventType::TransactionsAdded],
+        };
+
+        let rx = client
+            .subscribe(format!("{}", server_addr), subscription_request)
+            .unwrap();
+
+        // Give it time to establish connection
+        thread::sleep(Duration::from_millis(200));
+
+        // Verify connection status is connected
+        assert_eq!(
+            client.get_status(),
+            ConnectionStatus::Connected,
+            "Client should be connected"
+        );
+
+        // Wait long enough for multiple ping/pong cycles
+        thread::sleep(Duration::from_secs(2));
+
+        // Verify still connected after ping/pong cycles
+        assert_eq!(
+            client.get_status(),
+            ConnectionStatus::Connected,
+            "Client should remain connected after ping/pong exchanges"
+        );
+
+        // Shutdown the client
+        client.shutdown_and_join();
+
+        // Wait for the server to finish
+        server_handle.join().unwrap();
     }
 }

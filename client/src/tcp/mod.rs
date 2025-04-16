@@ -6,7 +6,7 @@ mod tcp_client_blocking;
 pub use connection_status::{ConnectionStatus, ConnectionStatusTracker};
 pub use reconnection::{ReconnectionConfig, ReconnectionManager};
 pub use tcp_client::{
-    AsyncTcpClient as TitanTcpClient, ReconnectSettings as TitanTcpClientConfig,
+    AsyncTcpClient as TitanTcpClient, Config as TitanTcpClientConfig,
     TcpClientError as TitanTcpClientError,
 };
 pub use tcp_client_blocking::{

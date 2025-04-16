@@ -8,7 +8,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, watch, RwLock},
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 /// A subscription coming from a TCP client.
@@ -52,7 +52,7 @@ impl TcpSubscriptionManager {
 
         let subs = self.subscriptions.read().await;
         let mut failed_ids = Vec::new();
-        
+
         for (id, sub) in subs.iter() {
             if sub.event_types.contains(&event_type) {
                 // Try sending the event; if it fails (e.g. channel closed) log the error.
@@ -62,10 +62,10 @@ impl TcpSubscriptionManager {
                 }
             }
         }
-        
+
         // Drop the read lock before removing subscriptions
         drop(subs);
-        
+
         // Remove any subscriptions that failed to receive events
         for id in failed_ids {
             self.unregister(id).await;
@@ -142,6 +142,9 @@ async fn handle_tcp_connection(
     manager.register(sub).await;
     info!("Registered TCP subscription with id {}", sub_id);
 
+    // Clear the buffer for subsequent reads
+    buf.clear();
+
     // Loop until the connection is closed.
     loop {
         tokio::select! {
@@ -167,7 +170,22 @@ async fn handle_tcp_connection(
                         break;
                     },
                     Ok(_) => {
-                        // For simplicity, ignore any additional messages.
+                        // Check if this is a PING message
+                        let trimmed = buf.trim();
+                        if trimmed == "PING" {
+                            if let Err(e) = writer.write_all(b"PONG\n").await {
+                                error!("Failed to send PONG: {:?}", e);
+                                break;
+                            }
+                            if let Err(e) = writer.flush().await {
+                                error!("Failed to flush after PONG: {:?}", e);
+                                break;
+                            }
+                        } else {
+                            // Log any other messages for debugging
+                            debug!("Received message from client: {}", trimmed);
+                        }
+                        // Clear the buffer for the next read
                         buf.clear();
                     },
                     Err(e) => {
