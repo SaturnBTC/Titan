@@ -8,7 +8,7 @@ Titan is a next-gen Bitcoin indexer by Saturn, designed for real-time blockchain
 - Real-Time Blockchain Access – Instant data retrieval for responsive applications.
 - Scalable & Lightweight – High throughput with minimal computational overhead.
 - Advanced Runes Integration – Native support for Runes tokens, instant token data, and secure transaction validation.
-- Mempool-Level Indexing for Runes – Differentiates pending vs confirmed runes in outputs from transactions in the mempool. 
+- Mempool-Level Indexing for Runes – Differentiates pending vs confirmed runes in outputs from transactions in the mempool.
 
 ## Requirements
 
@@ -58,13 +58,7 @@ The docker-compose file orchestrates two services on a custom network (titan-net
 - titan:
   Builds the Titan image from the local Dockerfile. It depends on Bitcoind (using a health check) and passes its configuration via environment variables.
 
-Before running containers run the following command to enable necessary permissions to the titan user:
-
-```bash
-sudo chown -R 1000:1000 ./titan_data
-```
-
-After that run the following command in order to run services:
+Run the following command in order to run services:
 
 ```bash
 docker-compose up --build
