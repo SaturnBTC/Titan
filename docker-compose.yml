@@ -31,7 +31,7 @@ services:
     ports:
       - 0.0.0.0:${BITCOIN_RPC_PORT}:${BITCOIN_RPC_PORT}
     volumes:
-      - "./btcd_data:/var/lib/bitcoin-core"
+      - "btcd-data:/var/lib/bitcoin-core"
     networks:
       titan-network:
         ipv4_address: 172.28.0.3
@@ -69,3 +69,4 @@ networks:
 
 volumes:
   titan-data:
+  btcd-data:
