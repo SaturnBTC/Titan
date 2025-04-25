@@ -43,6 +43,7 @@ services:
       -rpcuser=${BITCOIN_RPC_USERNAME}
       -rpcpassword=${BITCOIN_RPC_PASSWORD}
       -fallbackfee=0.00000001
+      -txindex
     healthcheck:
       test:
         [
