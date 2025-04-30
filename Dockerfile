@@ -2,11 +2,11 @@
 FROM rust:1.81.0-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
-  build-essential \
-  libssl-dev \
-  librocksdb-dev \
-  pkg-config \
-  libclang-dev \
+    build-essential \
+    libssl-dev \
+    librocksdb-dev \
+    pkg-config \
+    libclang-dev \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
@@ -18,10 +18,10 @@ FROM debian:bookworm-slim AS runner
 
 # Install runtime deps + gosu for dropping privileges
 RUN apt-get update && apt-get install -y \
-  libssl3 \
-  librocksdb7.8 \
-  ca-certificates \
-  gosu \
+    libssl3 \
+    librocksdb7.8 \
+    ca-certificates \
+    gosu \
   && rm -rf /var/lib/apt/lists/*
 
 # Create unprivileged titan user
@@ -43,7 +43,6 @@ RUN chmod +x /usr/local/bin/titan
 
 # Default environment (overridable at runtime)
 ENV COMMIT_INTERVAL=5
-ENV MAIN_LOOP_INTERVAL=500
 ENV BITCOIN_RPC_URL=127.0.0.1:18443
 ENV BITCOIN_RPC_USERNAME=bitcoin
 ENV BITCOIN_RPC_PASSWORD=bitcoinpass
