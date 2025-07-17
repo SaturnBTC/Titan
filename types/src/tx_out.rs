@@ -4,6 +4,7 @@ use {
     borsh::{BorshDeserialize, BorshSerialize},
     serde::{Deserialize, Serialize},
     std::io::{Read, Result, Write},
+    serde_with::{serde_as, DisplayFromStr}
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,10 +85,12 @@ impl<'de> Deserialize<'de> for SpentStatus {
     }
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TxOut {
     pub runes: Vec<RuneAmount>,
     pub risky_runes: Vec<RuneAmount>,
+    #[serde_as(as = "DisplayFromStr")]
     pub value: u64,
     pub spent: SpentStatus,
     pub script_pubkey: ScriptBuf,

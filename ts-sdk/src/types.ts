@@ -57,7 +57,7 @@ export interface AddressData {
 }
 
 export interface TxOut {
-  value: number;
+  value: string;
   script_pubkey: string;
   runes: RuneAmount[];
   risky_runes: RuneAmount[];

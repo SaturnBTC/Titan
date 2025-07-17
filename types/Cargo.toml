@@ -19,6 +19,7 @@ brotli = { workspace = true }
 http = { workspace = true }
 ordinals = { workspace = true }
 serde = { workspace = true }
+serde_with = "3"
 thiserror = { workspace = true }
 hex = { workspace = true }
 uuid = { workspace = true }
