@@ -244,8 +244,13 @@ impl Updater {
     fn perform_full_sync(&self) -> Result<()> {
         debug!("Updating to tip");
 
-        // Every 5000 blocks, commit the changes to the database
-        let commit_interval = self.settings.commit_interval as usize;
+        // Memory-based dynamic flushing
+        let mut mem_limiter = crate::util::memory::MemoryLimiter::new(
+            crate::util::memory::MemoryLimiterSettings {
+                flush_ratio: self.settings.memory_flush_ratio,
+                ..Default::default()
+            },
+        );
 
         // Get RPC client and current blockchain info before doing any heavy work
         let bitcoin_block_client = self.bitcoin_rpc_pool.get()?;
@@ -332,9 +337,10 @@ impl Updater {
 
                 cache.set_new_block(block);
 
-                if cache.should_flush(commit_interval) {
-                    info!("Flushing cache");
-
+                let should_flush_due_to_memory = mem_limiter.should_flush();
+                if should_flush_due_to_memory {
+                    info!("Flushing cache due to memory pressure");
+                    
                     let _timer = self
                         .latency
                         .with_label_values(&["flush_cache"])

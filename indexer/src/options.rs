@@ -116,13 +116,13 @@ pub struct Options {
     )]
     pub(super) index_addresses: bool,
 
-    /// Commit interval in blocks. [default: 500]
+    /// Memory flush ratio (0.0-1.0). Flush when memory used >= ratio of limit/total.
     #[arg(
         long,
-        help = "Commit interval in blocks. [default: 50]",
-        default_value = "50"
+        help = "Flush when memory usage reaches this ratio of the limit (0.0-1.0). [default: 0.85]",
+        default_value = "0.85"
     )]
-    pub(super) commit_interval: u64,
+    pub(super) memory_flush_ratio: f64,
 
     /// Enable zmq listener. This optimizes the mempool indexing process because
     /// we don't need to fetch transactions from the RPC.
@@ -207,8 +207,8 @@ impl From<Options> for Settings {
             index_bitcoin_transactions: options.index_bitcoin_transactions,
             index_spent_outputs: options.index_spent_outputs,
             index_addresses: options.index_addresses,
-            commit_interval: options.commit_interval,
             main_loop_interval: options.main_loop_interval,
+            memory_flush_ratio: options.memory_flush_ratio,
         }
     }
 }
