@@ -49,6 +49,8 @@ export interface AddressTxOut extends OutPoint {
   risky_runes: RuneAmount[];
   status: TransactionStatus;
   spent: SpentStatus;
+  size: number;
+  weight: number;
 }
 
 export interface AddressData {

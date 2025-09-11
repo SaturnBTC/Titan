@@ -347,6 +347,7 @@ impl Index {
         let mut runes = HashMap::default();
         let mut value = 0;
         let mut outputs = Vec::new();
+        let mut tx_sizes: HashMap<SerializedTxid, (u64, u64)> = HashMap::default();
         for (outpoint, tx_out) in outpoints_to_tx_out {
             for rune in tx_out.runes.iter() {
                 runes
@@ -364,16 +365,33 @@ impl Index {
 
             value += tx_out.value;
 
-            let output = AddressTxOut::from((
-                outpoint,
-                tx_out,
-                block_id_to_transaction_status(
-                    txns_confirming_block
-                        .get(&outpoint.to_serialized_txid())
-                        .and_then(|x| x.as_ref()),
-                ),
-            ));
+            // Populate transaction size and vsize
+            let txid_ser = outpoint.to_serialized_txid();
+            let (size, weight) = if let Some(s) = tx_sizes.get(&txid_ser) {
+                *s
+            } else {
+                let tx = self.get_transaction(&txid_ser)?;
+                let s = (tx.size, tx.weight);
+                tx_sizes.insert(txid_ser, s);
+                s
+            };
 
+            let status = block_id_to_transaction_status(
+                txns_confirming_block
+                    .get(&txid_ser)
+                    .and_then(|x| x.as_ref()),
+            );
+            let output = AddressTxOut {
+                txid: outpoint.to_txid(),
+                vout: outpoint.vout(),
+                value: tx_out.value,
+                runes: tx_out.runes,
+                risky_runes: tx_out.risky_runes,
+                spent: tx_out.spent,
+                status,
+                size,
+                weight,
+            };
             outputs.push(output);
         }
 
