@@ -119,6 +119,9 @@ pub struct Updater {
 
     // monitoring
     latency: HistogramVec,
+
+    // memory limiter shared across indexing loops
+    mem_limiter: Mutex<crate::util::memory::MemoryLimiter>,
 }
 
 impl Updater {
@@ -130,6 +133,9 @@ impl Updater {
         shutdown_flag: Arc<AtomicBool>,
         sender: Option<Sender<Event>>,
     ) -> Self {
+        let high = settings.memory_flush_ratio;
+        let low = settings.memory_resume_ratio;
+        let refresh_ms = settings.memory_refresh_ms;
         Self {
             db: Arc::new(StoreWithLock::new(db)),
             settings,
@@ -145,6 +151,13 @@ impl Updater {
                 prometheus::HistogramOpts::new("indexer_latency", "Indexer latency"),
                 &["method"],
             ),
+            mem_limiter: Mutex::new(crate::util::memory::MemoryLimiter::new(
+                crate::util::memory::MemoryLimiterSettings {
+                    high_watermark_ratio: high,
+                    low_watermark_ratio: low,
+                    min_refresh_interval: std::time::Duration::from_millis(refresh_ms),
+                },
+            )),
         }
     }
 
@@ -244,14 +257,6 @@ impl Updater {
     fn perform_full_sync(&self) -> Result<()> {
         debug!("Updating to tip");
 
-        // Memory-based dynamic flushing
-        let mut mem_limiter = crate::util::memory::MemoryLimiter::new(
-            crate::util::memory::MemoryLimiterSettings {
-                flush_ratio: self.settings.memory_flush_ratio,
-                ..Default::default()
-            },
-        );
-
         // Get RPC client and current blockchain info before doing any heavy work
         let bitcoin_block_client = self.bitcoin_rpc_pool.get()?;
         let mut chain_info = bitcoin_block_client.get_blockchain_info()?;
@@ -337,19 +342,42 @@ impl Updater {
 
                 cache.set_new_block(block);
 
-                let should_flush_due_to_memory = mem_limiter.should_flush();
-                if should_flush_due_to_memory {
-                    info!("Flushing cache due to memory pressure");
-                    
+                if self
+                    .mem_limiter
+                    .lock()
+                    .map_err(|_| UpdaterError::Mutex)?
+                    .above_high()
+                {
+                    info!("Memory high watermark reached. Flushing cache synchronously.");
+
                     let _timer = self
                         .latency
-                        .with_label_values(&["flush_cache"])
+                        .with_label_values(&["flush_cache_sync"])
                         .start_timer();
 
-                    cache.add_address_events(&mut events, self.settings.chain);
+                    if self.settings.index_addresses {
+                        cache.add_address_events(&mut events, self.settings.chain);
+                    }
 
-                    // Flush asynchronously, and emit events only after persistence completes
-                    self.emit_events_after_persist(&mut cache, &mut events)?;
+                    // Flush and wait for persistence to complete to free memory pressure
+                    cache.flush_sync()?;
+
+                    if let Err(e) = events.send_events(&self.sender) {
+                        if !self.shutdown_flag.load(Ordering::SeqCst) {
+                            error!("Failed to send events: {:?}", e);
+                        }
+                    }
+
+                    // Cooldown: wait until memory drops below low watermark to avoid thrashing
+                    while !self
+                        .mem_limiter
+                        .lock()
+                        .map_err(|_| UpdaterError::Mutex)?
+                        .below_low()
+                        && !self.shutdown_flag.load(Ordering::SeqCst)
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
                 }
 
                 indexing_first_block = false;

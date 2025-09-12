@@ -19,6 +19,8 @@ pub struct Settings {
     pub(crate) index_addresses: bool,
     pub(crate) main_loop_interval: u64,
     pub(crate) memory_flush_ratio: f64,
+    pub(crate) memory_resume_ratio: f64,
+    pub(crate) memory_refresh_ms: u64,
 }
 
 impl RpcClientProvider for Settings {

@@ -124,6 +124,22 @@ pub struct Options {
     )]
     pub(super) memory_flush_ratio: f64,
 
+    /// Memory resume ratio (0.0-1.0). Resume processing when usage <= ratio.
+    #[arg(
+        long,
+        help = "Resume processing when memory usage drops to this ratio or below. [default: 0.75]",
+        default_value = "0.75"
+    )]
+    pub(super) memory_resume_ratio: f64,
+
+    /// Memory refresh interval in milliseconds.
+    #[arg(
+        long,
+        help = "Minimum interval between memory checks in milliseconds. [default: 250]",
+        default_value = "250"
+    )]
+    pub(super) memory_refresh_ms: u64,
+
     /// Enable zmq listener. This optimizes the mempool indexing process because
     /// we don't need to fetch transactions from the RPC.
     #[arg(long, default_value = "false")]
@@ -209,6 +225,8 @@ impl From<Options> for Settings {
             index_addresses: options.index_addresses,
             main_loop_interval: options.main_loop_interval,
             memory_flush_ratio: options.memory_flush_ratio,
+            memory_resume_ratio: options.memory_resume_ratio,
+            memory_refresh_ms: options.memory_refresh_ms,
         }
     }
 }

@@ -9,8 +9,10 @@ pub struct MemorySnapshot {
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryLimiterSettings {
-    /// Trigger flush when used >= total * ratio
-    pub flush_ratio: f64,
+    /// Trigger when used >= total * high_watermark_ratio
+    pub high_watermark_ratio: f64,
+    /// Consider recovered when used <= total * low_watermark_ratio
+    pub low_watermark_ratio: f64,
     /// Minimum interval between expensive reads
     pub min_refresh_interval: Duration,
 }
@@ -18,7 +20,8 @@ pub struct MemoryLimiterSettings {
 impl Default for MemoryLimiterSettings {
     fn default() -> Self {
         Self {
-            flush_ratio: 0.80,
+            high_watermark_ratio: 0.85,
+            low_watermark_ratio: 0.75,
             min_refresh_interval: Duration::from_millis(250),
         }
     }
@@ -34,12 +37,23 @@ impl MemoryLimiter {
         Self { settings, last_snapshot: None }
     }
 
-    pub fn should_flush(&mut self) -> bool {
+    pub fn above_high(&mut self) -> bool {
         let snap = self.snapshot();
         if let Some(snap) = snap {
             if snap.total_bytes > 0 {
                 let used_ratio = (snap.used_bytes as f64) / (snap.total_bytes as f64);
-                return used_ratio >= self.settings.flush_ratio;
+                return used_ratio >= self.settings.high_watermark_ratio;
+            }
+        }
+        false
+    }
+
+    pub fn below_low(&mut self) -> bool {
+        let snap = self.snapshot();
+        if let Some(snap) = snap {
+            if snap.total_bytes > 0 {
+                let used_ratio = (snap.used_bytes as f64) / (snap.total_bytes as f64);
+                return used_ratio <= self.settings.low_watermark_ratio;
             }
         }
         false
