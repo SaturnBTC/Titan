@@ -47,6 +47,7 @@ ENV BITCOIN_RPC_PASSWORD=bitcoinpass
 ENV CHAIN=regtest
 ENV HTTP_LISTEN=0.0.0.0:3030
 ENV TCP_ADDRESS=0.0.0.0:8080
+ENV MAIN_LOOP_INTERVAL=500
 
 # Expose the mountpoint for the data dir
 VOLUME ["/home/titan/data"]

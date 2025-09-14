@@ -62,7 +62,8 @@ if [ "$1" = "titan" ] || [ "$1" = "/usr/local/bin/titan" ]; then
       --index-addresses \
       --index-bitcoin-transactions \
       --enable-tcp-subscriptions \
-      --tcp-address "${TCP_ADDRESS:-0.0.0.0:8080}"
+      --tcp-address "${TCP_ADDRESS:-0.0.0.0:8080}" \
+      --main-loop-interval "${MAIN_LOOP_INTERVAL:-500}"
   fi
 fi
 
