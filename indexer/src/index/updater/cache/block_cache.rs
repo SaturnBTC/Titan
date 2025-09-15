@@ -47,7 +47,7 @@ impl BlockCacheSettings {
             index_spent_outputs: settings.index_spent_outputs,
             max_async_batches: 8,
             rune_cache_size: 1000,
-            outpoint_cache_size: 10_000_000,
+            outpoint_cache_size: 1_000_000,
         }
     }
 }
