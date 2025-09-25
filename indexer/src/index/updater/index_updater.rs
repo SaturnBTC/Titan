@@ -927,13 +927,16 @@ impl Updater {
             .with_label_values(&["notify_tx_updates"])
             .start_timer();
 
-        let categorized = {
+        let (categorized, block_added_after_mined_and_reorg) = {
             let transaction_update = self
                 .transaction_update
                 .read()
                 .map_err(|_| UpdaterError::Mutex)?;
 
-            transaction_update.categorize_to_change_set()
+            let change_set = transaction_update.categorize_to_change_set();
+            let block_added_after_mined_and_reorg =
+                transaction_update.block_added_after_mined_and_reorg();
+            (change_set, block_added_after_mined_and_reorg)
         };
 
         if let Some(sender) = &self.sender {
@@ -967,9 +970,18 @@ impl Updater {
                 sender.blocking_send(Event::TransactionsReplaced { txids: not_exists })?;
             }
 
-            if !categorized.added.is_empty() {
+            // Final added set: normal newly-added UNION
+            // the txs that were mined, reorged out, and re-mined (appeared in block_added more than in block_removed),
+            let mut added = categorized.added;
+            if !block_added_after_mined_and_reorg.is_empty() {
+                for txid in block_added_after_mined_and_reorg {
+                    added.insert(txid);
+                }
+            }
+
+            if !added.is_empty() {
                 sender.blocking_send(Event::TransactionsAdded {
-                    txids: categorized.added.into_iter().collect(),
+                    txids: added.into_iter().collect(),
                 })?;
             }
         }
