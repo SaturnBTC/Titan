@@ -3,5 +3,5 @@ pub use api::*;
 mod api;
 pub mod content;
 pub mod query;
-mod alkanes;
+pub mod alkanes;
 mod re;

@@ -99,7 +99,7 @@ impl Server {
             )
             .route("/subscription", post(Self::add_subscription))
             .route("/subscriptions", get(Self::subscriptions))
-            .merge(crate::api::alkanes::router(&Extension(index.clone())))
+            .merge(crate::api::alkanes::router())
             .layer(Extension(index))
             .layer(Extension(webhook_subscription_manager))
             .layer(Extension(config.clone()))

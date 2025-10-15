@@ -1,18 +1,13 @@
-use crate::{
-    api::{Json, JsonResult, Page, Pagination, Path, Query, Router},
-    index::Index,
+use crate::server::error::ServerResult;
+use axum::{
+    response::IntoResponse,
+    routing::get, Json, Router
 };
-use axum::routing::get;
-use std::sync::Arc;
 
-pub fn router(state: &Extension<Arc<Index>>) -> Router {
-    Router::new()
-        .route("/alkanes/protorunesbyaddress", get(protorunes_by_address))
+pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
+    Router::new().route("/alkanes/health", get(health_check))
 }
 
-async fn protorunes_by_address(
-    p: Path<String>,
-    Extension(index): Extension<Arc<Index>>,
-) -> JsonResult<String> {
-    Ok(Json("hello".to_string()))
+async fn health_check() -> impl IntoResponse {
+    (axum::http::StatusCode::OK, Json("ok"))
 }

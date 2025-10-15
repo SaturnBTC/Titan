@@ -11,7 +11,7 @@ use {
 };
 
 #[derive(Debug, thiserror::Error)]
-pub(super) enum ServerError {
+pub enum ServerError {
     #[error("bad request: {0}")]
     BadRequest(String),
 
@@ -31,7 +31,7 @@ pub(super) enum ServerError {
     NotFound(String),
 }
 
-pub(super) type ServerResult<T = Response> = Result<T, ServerError>;
+pub type ServerResult<T = Response> = Result<T, ServerError>;
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
