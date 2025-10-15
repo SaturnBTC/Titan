@@ -25,6 +25,7 @@ mod options;
 mod server;
 mod subscription;
 mod util;
+mod alkanes;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

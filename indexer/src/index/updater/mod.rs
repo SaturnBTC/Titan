@@ -10,4 +10,5 @@ mod index_updater;
 mod rollback;
 mod store_lock;
 mod transaction;
+pub mod downcast;
 mod transaction_update;

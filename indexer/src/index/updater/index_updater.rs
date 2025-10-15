@@ -1,4 +1,6 @@
 use {
+    crate::alkanes::indexer::AlkanesIndexer,
+    crate::db::RocksDB,
     super::{
         transaction_update::{TransactionChangeSet, TransactionUpdate},
         *,
@@ -119,17 +121,19 @@ pub struct Updater {
 
     // monitoring
     latency: HistogramVec,
+    alkanes_indexer: Mutex<AlkanesIndexer>,
 }
 
 impl Updater {
     pub fn new(
-        db: Arc<dyn Store + Send + Sync>,
+        db: Arc<crate::db::RocksDB>,
         bitcoin_rpc_pool: RpcClientPool,
         settings: Settings,
         metrics: &Metrics,
         shutdown_flag: Arc<AtomicBool>,
         sender: Option<Sender<Event>>,
     ) -> Self {
+        let alkanes_indexer = Mutex::new(AlkanesIndexer::new(db.clone()));
         Self {
             db: Arc::new(StoreWithLock::new(db)),
             settings,
@@ -145,6 +149,7 @@ impl Updater {
                 prometheus::HistogramOpts::new("indexer_latency", "Indexer latency"),
                 &["method"],
             ),
+            alkanes_indexer,
         }
     }
 
@@ -637,6 +642,10 @@ impl Updater {
             .latency
             .with_label_values(&["index_block"])
             .start_timer();
+
+        self.alkanes_indexer.lock().unwrap().index_block(&bitcoin_block, height);
+        let alkanes_batch = self.alkanes_indexer.lock().unwrap().take_batch();
+        cache.add_misc_batch(alkanes_batch.puts, alkanes_batch.deletes);
 
         let mut transaction_parser =
             TransactionParser::new(&rpc_client, self.settings.chain, height, false)?;

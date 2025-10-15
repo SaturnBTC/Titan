@@ -10,6 +10,7 @@ pub struct BatchDelete {
     pub script_pubkeys_outpoints: HashSet<TransactionStateChangeInput>,
     pub spent_outpoints_in_mempool: HashSet<SerializedOutPoint>,
     pub tx_state_changes: HashSet<SerializedTxid>,
+    pub misc: HashSet<Vec<u8>>,
 }
 
 impl BatchDelete {
@@ -19,6 +20,7 @@ impl BatchDelete {
             script_pubkeys_outpoints: HashSet::new(),
             spent_outpoints_in_mempool: HashSet::new(),
             tx_state_changes: HashSet::new(),
+            misc: HashSet::new(),
         }
     }
 
@@ -27,6 +29,7 @@ impl BatchDelete {
             && self.script_pubkeys_outpoints.is_empty()
             && self.spent_outpoints_in_mempool.is_empty()
             && self.tx_state_changes.is_empty()
+            && self.misc.is_empty()
     }
 
     /// Empties all collections while preserving their allocated capacity.
@@ -35,6 +38,7 @@ impl BatchDelete {
         self.script_pubkeys_outpoints.clear();
         self.spent_outpoints_in_mempool.clear();
         self.tx_state_changes.clear();
+        self.misc.clear();
     }
 }
 
@@ -42,11 +46,12 @@ impl Display for BatchDelete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "BatchDelete: {} tx_outs, {} script_pubkeys_outpoints, {} spent_outpoints_in_mempool, {} tx_state_changes",
+            "BatchDelete: {} tx_outs, {} script_pubkeys_outpoints, {} spent_outpoints_in_mempool, {} tx_state_changes, {} misc",
             self.tx_outs.len(),
             self.script_pubkeys_outpoints.len(),
             self.spent_outpoints_in_mempool.len(),
-            self.tx_state_changes.len()
+            self.tx_state_changes.len(),
+            self.misc.len()
         )
     }
 }

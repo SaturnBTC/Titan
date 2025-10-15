@@ -39,3 +39,9 @@ chrono = "0.4.39"
 clru = { workspace = true }
 crossbeam-channel = { workspace = true }
 rustc-hash = { workspace = true }
+metashrew-runtime = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
+anyhow = "1.0"
+prost = "0.14.1"
+
+[build-dependencies]
+prost-build = "0.11.1"

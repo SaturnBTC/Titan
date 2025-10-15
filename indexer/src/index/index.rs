@@ -76,7 +76,7 @@ impl Index {
             db: db.clone(),
             settings: settings.clone(),
             updater: Arc::new(Updater::new(
-                db.clone(),
+                crate::index::updater::downcast::downcast_arc(db.clone()).unwrap(),
                 bitcoin_rpc_pool,
                 settings.clone(),
                 &metrics,

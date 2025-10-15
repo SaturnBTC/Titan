@@ -43,7 +43,10 @@ impl From<RocksDBError> for StoreError {
     }
 }
 
-pub trait Store {
+use std::any::Any;
+
+pub trait Store: std::fmt::Debug + Any {
+    fn as_any(&self) -> &dyn Any;
     // settings
     fn is_index_addresses(&self) -> Result<Option<bool>, StoreError>;
     fn set_index_addresses(&self, value: bool) -> Result<(), StoreError>;
@@ -212,6 +215,10 @@ pub trait Store {
 }
 
 impl Store for RocksDB {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn is_index_addresses(&self) -> Result<Option<bool>, StoreError> {
         Ok(self.is_index_addresses()?)
     }

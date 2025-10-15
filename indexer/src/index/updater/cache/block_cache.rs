@@ -347,6 +347,11 @@ impl BlockCache {
         }
     }
 
+    pub fn add_misc_batch(&mut self, puts: HashMap<Vec<u8>, Vec<u8>>, deletes: HashSet<Vec<u8>>) {
+        self.update.misc.extend(puts);
+        self.delete.misc.extend(deletes);
+    }
+
     pub fn should_flush(&self, max_size: usize) -> bool {
         self.update.blocks.len() >= max_size
     }

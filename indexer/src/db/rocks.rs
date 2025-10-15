@@ -33,6 +33,14 @@ use {
     wrapper::RuneIdWrapper,
 };
 
+use std::fmt;
+
+impl fmt::Debug for RocksDB {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RocksDB").finish()
+    }
+}
+
 pub struct RocksDB {
     db: DBWithThreadMode<MultiThreaded>,
     mempool_cache: RwLock<HashMap<SerializedTxid, MempoolEntry>>,
@@ -81,6 +89,7 @@ const STATS_CF: &str = "stats";
 const SETTINGS_CF: &str = "settings";
 
 const SUBSCRIPTIONS_CF: &str = "subscriptions";
+const ALKANES_CF: &str = "alkanes";
 
 const INDEX_ADDRESSES_KEY: &str = "index_addresses";
 const INDEX_BITCOIN_TRANSACTIONS_KEY: &str = "index_bitcoin_transactions";
@@ -152,6 +161,8 @@ impl RocksDB {
             ColumnFamilyDescriptor::new(SETTINGS_CF, cf_opts.clone());
         let subscriptions_cfd: ColumnFamilyDescriptor =
             ColumnFamilyDescriptor::new(SUBSCRIPTIONS_CF, cf_opts.clone());
+        let alkanes_cfd: ColumnFamilyDescriptor =
+            ColumnFamilyDescriptor::new(ALKANES_CF, cf_opts.clone());
 
         let mut db_opts = Options::default();
         db_opts.create_if_missing(true);
@@ -227,6 +238,7 @@ impl RocksDB {
                 transaction_confirming_block_cfd,
                 settings_cfd,
                 subscriptions_cfd,
+                alkanes_cfd,
             ],
         )?;
 
@@ -272,7 +284,7 @@ impl RocksDB {
         Ok(())
     }
 
-    fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily>> {
+    pub fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily>> {
         match self.db.cf_handle(name) {
             None => Err(RocksDBError::InvalidHandle(name.to_string())),
             Some(handle) => Ok(handle),
@@ -1980,5 +1992,59 @@ impl RocksDB {
         //    at the end of this function.
         //    That will release RocksDB file handles, locks, etc.
         Ok(())
+    }
+
+    pub fn put_cf<K: AsRef<[u8]>, V: AsRef<[u8]>>(
+        &self,
+        cf_name: &str,
+        key: K,
+        value: V,
+    ) -> DBResult<()> {
+        let cf_handle = self.cf_handle(cf_name)?;
+        self.db.put_cf(&cf_handle, key, value).map_err(|e| e.into())
+    }
+
+    pub fn get_cf<K: AsRef<[u8]>>(
+        &self,
+        cf_name: &str,
+        key: K,
+    ) -> DBResult<Option<Vec<u8>>> {
+        let cf_handle = self.cf_handle(cf_name)?;
+        self.db.get_cf(&cf_handle, key).map_err(|e| e.into())
+    }
+
+    pub fn delete_cf<K: AsRef<[u8]>>(&self, cf_name: &str, key: K) -> DBResult<()> {
+        let cf_handle = self.cf_handle(cf_name)?;
+        self.db.delete_cf(&cf_handle, key).map_err(|e| e.into())
+    }
+
+    pub fn write_batch(&self, _cf_name: &str, batch: WriteBatch) -> DBResult<()> {
+        self.db.write(batch).map_err(|e| e.into())
+    }
+
+    pub fn scan_prefix<K: AsRef<[u8]>>(
+        &self,
+        cf_name: &str,
+        prefix: K,
+    ) -> DBResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let cf_handle = self.cf_handle(cf_name)?;
+        let iter = self
+            .db
+            .iterator_cf(&cf_handle, IteratorMode::From(prefix.as_ref(), Direction::Forward));
+        let mut result = Vec::new();
+        for item in iter {
+            let (key, value) = item?;
+            if !key.starts_with(prefix.as_ref()) {
+                break;
+            }
+            result.push((key.into_vec(), value.into_vec()));
+        }
+        Ok(result)
+    }
+
+    pub fn keys<'a>(&'a self, cf_name: &str) -> DBResult<Box<dyn Iterator<Item = Vec<u8>> + 'a>> {
+        let cf_handle = self.cf_handle(cf_name)?;
+        let iter = self.db.iterator_cf(&cf_handle, IteratorMode::Start);
+        Ok(Box::new(iter.map(|item| item.unwrap().0.into_vec())))
     }
 }
