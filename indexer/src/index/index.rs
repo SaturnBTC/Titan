@@ -230,6 +230,10 @@ impl Index {
             .await;
     }
 
+    pub fn network(&self) -> bitcoin::Network {
+        self.settings.chain.network()
+    }
+
     pub fn get_block_count(&self) -> Result<u64> {
         Ok(self.db.get_block_count()?)
     }

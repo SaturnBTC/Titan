@@ -6,6 +6,7 @@ use bitcoin::{
     consensus::serialize,
     Block as BitcoinBlock,
 };
+use anyhow::Error;
 use metashrew_runtime::MetashrewRuntime;
 use std::sync::{Arc, Mutex};
 
@@ -37,5 +38,14 @@ impl AlkanesIndexer {
     pub fn take_batch(&mut self) -> AlkanesBatch {
         let mut batch = self.batch.lock().unwrap();
         std::mem::take(&mut *batch)
+    }
+
+    pub async fn view(
+        &self,
+        method: String,
+        input: &Vec<u8>,
+        height: u32,
+    ) -> Result<Vec<u8>, Error> {
+        self.runtime.view(method, input, height).await
     }
 }

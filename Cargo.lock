@@ -48,6 +48,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "alkanes-support"
+version = "1.2.3"
+source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+dependencies = [
+ "anyhow",
+ "bitcoin",
+ "flate2",
+ "hex",
+ "metashrew-support",
+ "prost 0.12.6",
+ "prost-build 0.12.6",
+ "prost-types 0.12.6",
+ "protorune-support",
+ "serde",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -202,6 +219,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d6fd624c75e18b3b4c6b9caf42b1afe24437daaee904069137d8bab077be8b8"
 dependencies = [
  "axum-core",
+ "axum-macros",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -247,6 +265,17 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]
@@ -2085,6 +2114,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "metashrew-support"
+version = "9.0.1"
+source = "git+https://github.com/sandshrewmetaprotocols/metashrew#9bc8a5154166f1a2b207c1af2b8840d8d69d0f34"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "bitcoin",
+ "hex",
+ "prost 0.12.6",
+ "prost-build 0.12.6",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2334,6 +2376,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordinals"
+version = "1.2.3"
+source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+dependencies = [
+ "bitcoin",
+ "derive_more",
+ "serde",
+ "serde_with",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2526,16 +2580,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7231bd9b3d3d33c86b58adbac74b5ec0ad9f496b19d22801d773636feaa95f3d"
-dependencies = [
- "bytes",
- "prost-derive 0.14.1",
-]
-
-[[package]]
 name = "prost-build"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2605,19 +2649,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost-derive"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9120690fafc389a67ba3803df527d0ec9cbbc9cc45e4cc20b332996dfb672425"
-dependencies = [
- "anyhow",
- "itertools 0.12.1",
- "proc-macro2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
 name = "prost-types"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2640,6 +2671,23 @@ name = "protobuf"
 version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
+name = "protorune-support"
+version = "1.2.3"
+source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "bitcoin",
+ "hex",
+ "metashrew-support",
+ "ordinals 1.2.3",
+ "prost 0.12.6",
+ "prost-build 0.12.6",
+ "prost-types 0.12.6",
+ "serde",
+]
 
 [[package]]
 name = "psm"
@@ -3450,6 +3498,7 @@ dependencies = [
 name = "titan"
 version = "0.1.0"
 dependencies = [
+ "alkanes-support",
  "anyhow",
  "async_zmq",
  "axum",
@@ -3467,11 +3516,13 @@ dependencies = [
  "http",
  "indicatif",
  "lazy_static",
+ "leb128",
  "metashrew-runtime",
- "ordinals",
+ "ordinals 0.0.14",
  "prometheus",
- "prost 0.14.1",
+ "prost 0.12.6",
  "prost-build 0.11.9",
+ "protorune-support",
  "rayon",
  "regex",
  "reqwest",
@@ -3518,7 +3569,7 @@ dependencies = [
  "brotli",
  "hex",
  "http",
- "ordinals",
+ "ordinals 0.0.14",
  "serde",
  "serde_json",
  "thiserror 2.0.9",
@@ -3537,7 +3588,7 @@ dependencies = [
  "brotli",
  "hex",
  "http",
- "ordinals",
+ "ordinals 0.0.14",
  "serde",
  "thiserror 2.0.9",
  "uuid",

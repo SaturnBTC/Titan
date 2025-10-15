@@ -74,6 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     index.validate_index()?;
 
+    let alkanes_indexer = Arc::new(alkanes::indexer::AlkanesIndexer::new(db_arc.clone()));
+
     // 7. Spawn background threads (indexer, ZMQ listener, etc.)
     //    We also receive a signal (`index_shutdown_rx`) that fires when the indexer thread
     //    terminates unexpectedly (e.g., due to `Failed to update to tip`). When that happens
@@ -86,6 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = Server;
     let http_server_jh = server.start(
         index.clone(),
+        alkanes_indexer,
         webhook_subscription_manager
             .unwrap_or(Arc::new(WebhookSubscriptionManager::new(db_arc.clone()))),
         bitcoin_rpc_pool.clone(),

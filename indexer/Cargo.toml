@@ -41,7 +41,11 @@ crossbeam-channel = { workspace = true }
 rustc-hash = { workspace = true }
 metashrew-runtime = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
 anyhow = "1.0"
-prost = "0.14.1"
+prost = "0.12.6"
+alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs", package = "alkanes-support" }
+protorune-support = { git = "https://github.com/kungfuflex/alkanes-rs", package = "protorune-support" }
+leb128 = "0.2.5"
+
 
 [build-dependencies]
 prost-build = "0.11.1"
