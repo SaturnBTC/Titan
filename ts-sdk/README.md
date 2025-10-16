@@ -85,44 +85,65 @@ The TCP client allows you to subscribe to real-time events from the Titan Indexe
 
 **Important**: The TCP client works only in Node.js since it depends on Node's `net` module.
 
+#### Options
+
+```
+{
+  autoReconnect?: boolean;                  // Reconnect automatically (default: false)
+  // Heartbeat
+  heartbeatIntervalMs?: number;             // Send PING every N ms (default: 30000ms)
+  heartbeatTimeoutMs?: number;              // Wait for PONG for N ms (default: 10000ms)
+  // Exponential backoff (always used)
+  maxRetries?: number;                      // Max reconnect attempts (undefined => infinite)
+  baseDelayMs?: number;                     // Base backoff delay (default: 1000ms)
+  maxDelayMs?: number;                      // Max backoff cap (default: 60000ms)
+  jitterRatio?: number;                     // +/- jitter fraction (default: 0.3)
+  // Safety
+  maxLineLengthBytes?: number;              // Max incoming line length (default: 10 MiB)
+}
+```
+
+#### Events
+
+- `event`: emitted for each server event (JSON)
+- `error`: emitted on errors
+- `close`: emitted when the socket closes
+- `reconnect`: emitted upon successful (re)connect
+- `status`: emitted on status transitions: `Connecting | Connected | Reconnecting | Disconnected`
+
+#### Methods
+
+- `subscribe(request: TcpSubscriptionRequest): void`
+- `shutdown(): void`
+- `shutdownAsync(): Promise<void>`
+- `getStatus(): ConnectionStatus`
+
 #### Example
 
 ```typescript
 import { TitanTcpClient } from 'titan-client';
 
 function testTcpSubscription() {
-  // Create a TCP client instance with auto-reconnect enabled.
   const tcpClient = new TitanTcpClient('localhost', 4000, {
-    autoReconnect: true, // Automatically reconnect if disconnected
-    reconnectDelayMs: 5000, // Wait 5 seconds between reconnection attempts
+    autoReconnect: true,
+    // Use exponential backoff with jitter
+    baseDelayMs: 1000,
+    maxDelayMs: 60_000,
+    jitterRatio: 0.3,
+    // Heartbeat (PING/PONG)
+    heartbeatIntervalMs: 30_000,
+    heartbeatTimeoutMs: 10_000,
   });
 
-  // Listen for incoming events.
-  tcpClient.on('event', (event) => {
-    console.log('Received event:', event);
-  });
+  tcpClient.on('status', (s) => console.log('Status:', s));
+  tcpClient.on('event', (e) => console.log('Event:', e));
+  tcpClient.on('error', (err) => console.error('TCP error:', err));
 
-  // Listen for errors.
-  tcpClient.on('error', (err) => {
-    console.error('TCP Client Error:', err);
-  });
-
-  // Listen for when the connection closes.
-  tcpClient.on('close', () => {
-    console.log('TCP connection closed.');
-  });
-
-  // Listen for reconnection notifications.
-  tcpClient.on('reconnect', () => {
-    console.log('TCP client reconnected.');
-  });
-
-  // Start the subscription.
   tcpClient.subscribe({ subscribe: ['RuneEtched', 'RuneMinted'] });
 
-  // Optionally, shut down the client gracefully after 30 seconds.
-  setTimeout(() => {
-    tcpClient.shutdown();
+  // Graceful shutdown
+  setTimeout(async () => {
+    await tcpClient.shutdownAsync();
     console.log('TCP client shut down.');
   }, 30000);
 }
@@ -222,7 +243,13 @@ testTcpSubscription();
 #### Methods
 
 - **subscribe(subscriptionRequest: TcpSubscriptionRequest)**: `void`
-  Initiates the subscription process using the provided subscription request. The request is stored so it can be re-sent on reconnection.
+  Initiates the subscription process using the provided subscription request. The request is stored so it can be re-sent on reconnection. Replaces any existing subscription safely.
 
 - **shutdown()**: `void`
-  Gracefully shuts down the TCP client and cancels any pending reconnection attempts.
+  Immediately shuts down the TCP client and cancels timers.
+
+- **shutdownAsync()**: `Promise<void>`
+  Gracefully shuts down and resolves after the socket is closed and timers are cleared.
+
+- **getStatus()**: `ConnectionStatus`
+  Returns the current connection status.

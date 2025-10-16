@@ -150,8 +150,12 @@ export enum TitanEventType {
   RuneBurned = 'RuneBurned',
   RuneTransferred = 'RuneTransferred',
   AddressModified = 'AddressModified',
+  TransactionSubmitted = 'TransactionSubmitted',
   TransactionsAdded = 'TransactionsAdded',
   TransactionsReplaced = 'TransactionsReplaced',
+  MempoolTransactionsAdded = 'MempoolTransactionsAdded',
+  MempoolTransactionsReplaced = 'MempoolTransactionsReplaced',
+  MempoolEntriesUpdated = 'MempoolEntriesUpdated',
   NewBlock = 'NewBlock',
   Reorg = 'Reorg',
 }
@@ -168,6 +172,13 @@ export type TitanEvent =
         location: Location;
         rune_id: string;
         txid: string;
+      };
+    }
+  | {
+      type: TitanEventType.TransactionSubmitted;
+      data: {
+        txid: string;
+        entry: MempoolEntry;
       };
     }
   | {
@@ -206,12 +217,24 @@ export type TitanEvent =
       };
     }
   | {
+      type: TitanEventType.MempoolTransactionsAdded;
+      data: { txids: [string, MempoolEntry][] };
+    }
+  | {
       type: TitanEventType.TransactionsAdded;
+      data: { txids: string[] };
+    }
+  | {
+      type: TitanEventType.MempoolTransactionsReplaced;
       data: { txids: string[] };
     }
   | {
       type: TitanEventType.TransactionsReplaced;
       data: { txids: string[] };
+    }
+  | {
+      type: TitanEventType.MempoolEntriesUpdated;
+      data: { txids: [string, MempoolEntry][] };
     }
   | {
       type: TitanEventType.NewBlock;
