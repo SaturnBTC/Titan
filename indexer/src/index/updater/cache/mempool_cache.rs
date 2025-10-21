@@ -6,7 +6,7 @@ use {
             Chain, Settings,
         },
         models::{
-            BatchDelete, BatchUpdate, BlockId, Inscription, RuneEntry, TransactionStateChange,
+            BatchUpdate, BlockId, Inscription, RuneEntry, TransactionStateChange,
             TransactionStateChangeInput,
         },
     },
@@ -18,7 +18,7 @@ use {
         Event, InscriptionId, Location, MempoolEntry, SerializedOutPoint, SerializedTxid,
         SpenderReference, SpentStatus, TxOut,
     },
-    tracing::{debug, info},
+    tracing::debug,
 };
 
 type Result<T> = std::result::Result<T, StoreError>;
@@ -76,7 +76,7 @@ impl MempoolCache {
             return Ok(true);
         }
 
-        return self.db.read().is_tx_in_mempool(&txid);
+        Ok(self.db.read().is_tx_in_mempool(&txid)?)
     }
 
     pub fn set_mempool_tx(&mut self, txid: SerializedTxid, mempool_entry: MempoolEntry) -> () {
@@ -88,7 +88,7 @@ impl MempoolCache {
             return Ok(tx_out.clone());
         }
 
-        let tx_out = self.db.read().get_tx_out(outpoint, None)?;
+        let tx_out = self.db.read().get_tx_out(outpoint, true)?;
         Ok(tx_out)
     }
 
@@ -216,7 +216,7 @@ impl TransactionStore for MempoolCache {
         }
 
         // 4. Fallback to DB.
-        let transaction_raw = self.db.read().get_transaction_raw(txid, None)?;
+        let transaction_raw = self.db.read().get_transaction_raw(txid, true)?;
         let tx: Transaction = consensus::deserialize(&transaction_raw)?;
         Ok(tx)
     }
@@ -261,7 +261,7 @@ impl TransactionStore for MempoolCache {
         }
 
         // 2. DB.
-        let _ = self.db.read().get_rune_id(rune)?;
+        let _ = self.db.read().get_rune_id(&rune.0)?;
         Ok(())
     }
 

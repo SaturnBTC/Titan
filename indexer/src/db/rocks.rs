@@ -284,7 +284,7 @@ impl RocksDB {
         Ok(())
     }
 
-    pub fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily>> {
+    pub fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily<'_>>> {
         match self.db.cf_handle(name) {
             None => Err(RocksDBError::InvalidHandle(name.to_string())),
             Some(handle) => Ok(handle),
@@ -1994,57 +1994,19 @@ impl RocksDB {
         Ok(())
     }
 
-    pub fn put_cf<K: AsRef<[u8]>, V: AsRef<[u8]>>(
+    pub(crate) fn get_cf<K: AsRef<[u8]>>(
         &self,
-        cf_name: &str,
-        key: K,
-        value: V,
-    ) -> DBResult<()> {
-        let cf_handle = self.cf_handle(cf_name)?;
-        self.db.put_cf(&cf_handle, key, value).map_err(|e| e.into())
-    }
-
-    pub fn get_cf<K: AsRef<[u8]>>(
-        &self,
-        cf_name: &str,
+        cf: &Arc<BoundColumnFamily>,
         key: K,
     ) -> DBResult<Option<Vec<u8>>> {
-        let cf_handle = self.cf_handle(cf_name)?;
-        self.db.get_cf(&cf_handle, key).map_err(|e| e.into())
+        self.db.get_cf(cf, key).map_err(RocksDBError::from)
     }
 
-    pub fn delete_cf<K: AsRef<[u8]>>(&self, cf_name: &str, key: K) -> DBResult<()> {
-        let cf_handle = self.cf_handle(cf_name)?;
-        self.db.delete_cf(&cf_handle, key).map_err(|e| e.into())
-    }
-
-    pub fn write_batch(&self, _cf_name: &str, batch: WriteBatch) -> DBResult<()> {
-        self.db.write(batch).map_err(|e| e.into())
-    }
-
-    pub fn scan_prefix<K: AsRef<[u8]>>(
-        &self,
-        cf_name: &str,
-        prefix: K,
-    ) -> DBResult<Vec<(Vec<u8>, Vec<u8>)>> {
-        let cf_handle = self.cf_handle(cf_name)?;
-        let iter = self
-            .db
-            .iterator_cf(&cf_handle, IteratorMode::From(prefix.as_ref(), Direction::Forward));
-        let mut result = Vec::new();
-        for item in iter {
-            let (key, value) = item?;
-            if !key.starts_with(prefix.as_ref()) {
-                break;
-            }
-            result.push((key.into_vec(), value.into_vec()));
-        }
-        Ok(result)
-    }
-
-    pub fn keys<'a>(&'a self, cf_name: &str) -> DBResult<Box<dyn Iterator<Item = Vec<u8>> + 'a>> {
-        let cf_handle = self.cf_handle(cf_name)?;
-        let iter = self.db.iterator_cf(&cf_handle, IteratorMode::Start);
-        Ok(Box::new(iter.map(|item| item.unwrap().0.into_vec())))
+    pub(crate) fn iterator_cf<'a>(
+        &'a self,
+        cf: &Arc<BoundColumnFamily>,
+        mode: IteratorMode<'a>,
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>> + 'a {
+        self.db.iterator_cf(cf, mode)
     }
 }

@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{sync::atomic::AtomicBool, thread};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 pub use prometheus::{
     GaugeVec, Histogram, HistogramVec, IntCounter as Counter, IntCounterVec as CounterVec,

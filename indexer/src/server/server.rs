@@ -21,7 +21,7 @@ use {
     axum_server::Handle,
     bitcoin::{address::NetworkUnchecked, Address, BlockHash},
     http::{header, StatusCode},
-    std::{io, net::ToSocketAddrs, sync::Arc},
+    std::{io, net::ToSocketAddrs, sync::{Arc, Mutex}},
     titan_types::{
         query, InscriptionId, Pagination, SerializedOutPoint, SerializedTxid, Subscription,
     },
@@ -52,7 +52,7 @@ impl Server {
     pub fn start(
         &self,
         index: Arc<Index>,
-        alkanes_indexer: Arc<AlkanesIndexer>,
+        alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
         webhook_subscription_manager: Arc<WebhookSubscriptionManager>,
         bitcoin_rpc_pool: RpcClientPool,
         config: Arc<ServerConfig>,

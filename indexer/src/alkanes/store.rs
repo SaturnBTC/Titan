@@ -1,6 +1,6 @@
 use anyhow::Result;
 use metashrew_runtime::{BatchLike, KeyValueStoreLike};
-use rocksdb::{WriteBatch, IteratorMode, Direction};
+use rocksdb::{IteratorMode, Direction};
 use std::sync::{Arc, Mutex};
 
 use crate::db::{RocksDB, RocksDBError};
@@ -33,13 +33,22 @@ impl BatchLike for AlkanesBatch {
 
 #[derive(Clone)]
 pub struct AlkanesRocksDBStore {
-    db: Arc<RocksDB>,
+    db: Option<Arc<RocksDB>>,
     batch: Arc<Mutex<AlkanesBatch>>,
 }
 
 impl AlkanesRocksDBStore {
     pub fn new(db: Arc<RocksDB>, batch: Arc<Mutex<AlkanesBatch>>) -> Self {
-        Self { db, batch }
+        Self {
+            db: Some(db),
+            batch,
+        }
+    }
+    pub fn new_dummy() -> Self {
+        Self {
+            db: None,
+            batch: Arc::new(Mutex::new(<AlkanesBatch as Default>::default())),
+        }
     }
 }
 
@@ -48,33 +57,75 @@ impl KeyValueStoreLike for AlkanesRocksDBStore {
     type Batch = AlkanesBatch;
 
     fn write(&mut self, batch: Self::Batch) -> Result<(), Self::Error> {
-        let mut shared_batch = self.batch.lock().unwrap();
+        let mut shared_batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
         shared_batch.puts.extend(batch.puts);
         shared_batch.deletes.extend(batch.deletes);
         Ok(())
     }
 
     fn get<K: AsRef<[u8]>>(&mut self, key: K) -> Result<Option<Vec<u8>>, Self::Error> {
-        self.db.get_cf(ALKANES_CF, key)
+        let batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
+        if let Some(value) = batch.puts.get(key.as_ref()) {
+            return Ok(Some(value.clone()));
+        }
+        if batch.deletes.contains(key.as_ref()) {
+            return Ok(None);
+        }
+        if let Some(db) = &self.db {
+            let cf = db.cf_handle(ALKANES_CF)?;
+            Ok(db.get_cf(&cf, key)?)
+        } else {
+            Ok(None)
+        }
     }
 
     fn get_immutable<K: AsRef<[u8]>>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error> {
-        self.db.get_cf(ALKANES_CF, key)
+        let batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
+        if let Some(value) = batch.puts.get(key.as_ref()) {
+            return Ok(Some(value.clone()));
+        }
+        if batch.deletes.contains(key.as_ref()) {
+            return Ok(None);
+        }
+        if let Some(db) = &self.db {
+            let cf = db.cf_handle(ALKANES_CF)?;
+            Ok(db.get_cf(&cf, key)?)
+        } else {
+            Ok(None)
+        }
     }
 
     fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, key: K, value: V) -> Result<(), Self::Error> {
-        self.db.put_cf(ALKANES_CF, key, value)
+        let mut batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
+        batch.puts.insert(key.as_ref().to_vec(), value.as_ref().to_vec());
+        Ok(())
     }
 
     fn delete<K: AsRef<[u8]>>(&mut self, key: K) -> Result<(), Self::Error> {
-        self.db.delete_cf(ALKANES_CF, key)
+        let mut batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
+        batch.deletes.insert(key.as_ref().to_vec());
+        Ok(())
     }
 
     fn scan_prefix<K: AsRef<[u8]>>(
         &self,
         prefix: K,
     ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, Self::Error> {
-        self.db.scan_prefix(ALKANES_CF, prefix)
+        if let Some(db) = &self.db {
+            let cf = db.cf_handle(ALKANES_CF)?;
+            let mut results = vec![];
+            let iter = db.iterator_cf(&cf, IteratorMode::From(prefix.as_ref(), Direction::Forward));
+            for item in iter {
+                let (key, value) = item?;
+                if !key.starts_with(prefix.as_ref()) {
+                    break;
+                }
+                results.push((key.to_vec(), value.to_vec()));
+            }
+            Ok(results)
+        } else {
+            Ok(vec![])
+        }
     }
 
     fn create_batch(&self) -> Self::Batch {
@@ -82,6 +133,13 @@ impl KeyValueStoreLike for AlkanesRocksDBStore {
     }
 
     fn keys<'a>(&'a self) -> Result<Box<dyn Iterator<Item = Vec<u8>> + 'a>, Self::Error> {
-        self.db.keys(ALKANES_CF)
+        if let Some(db) = &self.db {
+            let cf = db.cf_handle(ALKANES_CF)?;
+            let iter = db.iterator_cf(&cf, IteratorMode::Start);
+            let keys = iter.map(|item| item.unwrap().0.to_vec());
+            Ok(Box::new(keys))
+        } else {
+            Ok(Box::new(std::iter::empty()))
+        }
     }
 }

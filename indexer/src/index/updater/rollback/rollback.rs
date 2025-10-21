@@ -1,7 +1,8 @@
 use {
     super::rollback_cache::RollbackCache,
     crate::{
-        index::{store::Store, Settings, StoreError},
+        db::{RocksDB, RocksDBError},
+        index::{Settings, StoreError},
         models::{TransactionStateChange, TransactionStateChangeInput},
     },
     bitcoin::ScriptBuf,
@@ -10,13 +11,15 @@ use {
     std::sync::Arc,
     thiserror::Error,
     titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, SpentStatus},
-    tracing::{info, trace, warn},
+    tracing::{info, warn},
 };
 
 #[derive(Debug, Error)]
 pub enum RollbackError {
     #[error("store error {0}")]
     Store(#[from] StoreError),
+    #[error("db error {0}")]
+    RocksDB(#[from] RocksDBError),
     #[error("overflow in {0}")]
     Overflow(String),
 }
@@ -36,14 +39,14 @@ impl From<Settings> for RollbackSettings {
 }
 
 pub struct Rollback<'a> {
-    store: &'a Arc<dyn Store + Send + Sync>,
+    store: &'a Arc<RocksDB>,
     settings: RollbackSettings,
     cache: RollbackCache<'a>,
 }
 
 impl<'a> Rollback<'a> {
     pub fn new(
-        store: &'a Arc<dyn Store + Send + Sync>,
+        store: &'a Arc<RocksDB>,
         settings: RollbackSettings,
         mempool: bool,
     ) -> Result<Self> {
