@@ -1,6 +1,7 @@
 use {
     crate::{
-        index::{store::Store, StoreError},
+        db::RocksDB,
+        index::StoreError,
         models::{BatchRollback, RuneEntry},
     },
     bitcoin::ScriptBuf,
@@ -19,14 +20,14 @@ pub struct TempCache {
 }
 
 pub struct RollbackCache<'a> {
-    db: &'a Arc<dyn Store + Send + Sync>,
+    db: &'a Arc<RocksDB>,
     update: BatchRollback,
     temp_cache: TempCache,
     pub mempool: bool,
 }
 
 impl<'a> RollbackCache<'a> {
-    pub fn new(db: &'a Arc<dyn Store + Send + Sync>, mempool: bool) -> Result<Self> {
+    pub fn new(db: &'a Arc<RocksDB>, mempool: bool) -> Result<Self> {
         let runes_count = db.get_runes_count()?;
 
         Ok(Self {
@@ -109,7 +110,7 @@ impl<'a> RollbackCache<'a> {
     ) -> Result<HashMap<SerializedOutPoint, ScriptBuf>> {
         let script_pubkeys =
             self.db
-                .get_outpoints_to_script_pubkey(outpoints, Some(self.mempool), optimistic)?;
+                .get_outpoints_to_script_pubkey(outpoints, self.mempool, optimistic)?;
         Ok(script_pubkeys)
     }
 

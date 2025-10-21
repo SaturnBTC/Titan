@@ -2,12 +2,13 @@ use {
     super::{
         metrics::Metrics,
         settings::Settings,
-        store::{Store, StoreError},
         updater::Updater,
         zmq::ZmqManager,
     },
     crate::{
+        alkanes::indexer::AlkanesIndexer,
         bitcoin_rpc::{RpcClientError, RpcClientPool},
+        db::{RocksDB, RocksDBError},
         index::updater::{ReorgError, UpdaterError},
         models::{block_id_to_transaction_status, Inscription, RuneEntry},
     },
@@ -17,15 +18,15 @@ use {
     std::{
         sync::{
             atomic::{AtomicBool, Ordering},
-            Arc,
+            Arc, Mutex,
         },
         thread::{self},
         time::Duration,
     },
     titan_types::{
         AddressData, AddressTxOut, Block, Event, InscriptionId, MempoolEntry, Pagination,
-        PaginationResponse, RuneAmount, SerializedOutPoint, SerializedTxid, Transaction,
-        TransactionStatus, TxOut,
+        PaginationResponse, RuneAmount, SerializedOutPoint, SerializedTxid, SpenderReference,
+        SpentStatus, Transaction, TransactionStatus, TxOut,
     },
     tokio::{runtime::Runtime, sync::mpsc::Sender},
     tracing::{error, info, warn},
@@ -33,8 +34,8 @@ use {
 
 #[derive(Debug, thiserror::Error)]
 pub enum IndexError {
-    #[error("store error: {0}")]
-    StoreError(#[from] StoreError),
+    #[error("db error: {0}")]
+    RocksDBError(#[from] crate::db::RocksDBError),
     #[error("invalid index: {0}")]
     InvalidIndex(String),
     #[error("invalid best block hash: {0}")]
@@ -50,7 +51,7 @@ pub enum IndexError {
 type Result<T> = std::result::Result<T, IndexError>;
 
 pub struct Index {
-    db: Arc<dyn Store + Send + Sync>,
+    db: Arc<RocksDB>,
     settings: Settings,
     updater: Arc<Updater>,
 
@@ -61,10 +62,11 @@ pub struct Index {
 
 impl Index {
     pub fn new(
-        db: Arc<dyn Store + Send + Sync>,
+        db: Arc<RocksDB>,
         bitcoin_rpc_pool: RpcClientPool,
         settings: Settings,
         sender: Option<Sender<Event>>,
+        alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
     ) -> Self {
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let metrics = Metrics::new();
@@ -76,12 +78,13 @@ impl Index {
             db: db.clone(),
             settings: settings.clone(),
             updater: Arc::new(Updater::new(
-                crate::index::updater::downcast::downcast_arc(db.clone()).unwrap(),
+                db.clone(),
                 bitcoin_rpc_pool,
                 settings.clone(),
                 &metrics,
                 shutdown_flag.clone(),
                 sender,
+                alkanes_indexer,
             )),
             shutdown_flag,
             zmq_manager: Arc::new(zmq_manager),
@@ -250,6 +253,22 @@ impl Index {
         Ok(self.db.get_block_by_hash(hash)?)
     }
 
+    pub fn get_blocks_by_heights(
+        &self,
+        from_height: u64,
+        to_height: u64,
+    ) -> Result<HashMap<u64, Block>> {
+        let block_hashes = self.db.get_block_hashes_by_height(from_height, to_height)?;
+        let blocks = self.db.get_blocks_by_hashes(&block_hashes)?;
+        let mut result = HashMap::default();
+        for (_, block) in blocks {
+            let height = block.height;
+            result.insert(height, block);
+        }
+
+        Ok(result)
+    }
+
     pub fn get_mempool_txids(&self) -> Result<Vec<SerializedTxid>> {
         Ok(self.db.get_mempool_txids()?.keys().cloned().collect())
     }
@@ -277,18 +296,28 @@ impl Index {
     }
 
     pub fn get_tx_out(&self, outpoint: &SerializedOutPoint) -> Result<TxOut> {
-        Ok(self
-            .db
-            .get_tx_out_with_mempool_spent_update(outpoint, None)?)
+        let mut tx_out = self.db.get_tx_out(outpoint, false)?;
+        let spent_outpoints: HashMap<SerializedOutPoint, Option<SpenderReference>> =
+            self.db.get_spent_outpoints_in_mempool(&vec![*outpoint])?;
+        if let Some(Some(spent)) = spent_outpoints.get(outpoint) {
+            tx_out.spent = SpentStatus::Spent(spent.clone());
+        }
+        Ok(tx_out)
     }
 
     pub fn get_tx_outs(
         &self,
         outpoints: &[SerializedOutPoint],
     ) -> Result<HashMap<SerializedOutPoint, TxOut>> {
-        Ok(self
-            .db
-            .get_tx_outs_with_mempool_spent_update(outpoints, None)?)
+        let mut tx_outs = self.db.get_tx_outs(outpoints, None)?;
+        let spent_outpoints: HashMap<SerializedOutPoint, Option<SpenderReference>> =
+            self.db.get_spent_outpoints_in_mempool(outpoints)?;
+        for (outpoint, output) in tx_outs.iter_mut() {
+            if let Some(Some(spent)) = spent_outpoints.get(outpoint) {
+                output.spent = SpentStatus::Spent(spent.clone());
+            }
+        }
+        Ok(tx_outs)
     }
 
     pub fn get_rune(&self, rune_id: &RuneId) -> Result<RuneEntry> {
@@ -299,11 +328,25 @@ impl Index {
         &self,
         pagination: Pagination,
     ) -> Result<PaginationResponse<(RuneId, RuneEntry)>> {
-        Ok(self.db.get_runes(pagination)?)
+        let runes_count = self.db.get_runes_count()?;
+        let (skip, limit) = pagination.into();
+        let start = runes_count.saturating_sub(skip);
+        let end = runes_count.saturating_sub(skip).saturating_sub(limit);
+        let mut runes = Vec::new();
+        for i in (end..start).rev() {
+            let rune_id = self.db.get_rune_id_by_number(i)?;
+            let rune_entry = self.db.get_rune(&rune_id)?;
+            runes.push((rune_id, rune_entry));
+        }
+        let offset = skip + runes.len() as u64;
+        Ok(PaginationResponse {
+            items: runes,
+            offset,
+        })
     }
 
     pub fn get_rune_id(&self, rune: &Rune) -> Result<RuneId> {
-        Ok(self.db.get_rune_id(rune)?)
+        Ok(self.db.get_rune_id(&rune.0)?)
     }
 
     pub fn get_runes_count(&self) -> Result<u64> {
@@ -322,15 +365,13 @@ impl Index {
     ) -> Result<PaginationResponse<SerializedTxid>> {
         Ok(self
             .db
-            .get_last_rune_transactions(rune_id, pagination, mempool)?)
+            .get_last_rune_transactions(rune_id, pagination, mempool.unwrap_or(false))?)
     }
 
     pub fn get_script_pubkey_outpoints(&self, address: &Address) -> Result<AddressData> {
         let script_pubkey = address.script_pubkey();
-        let outpoints = self.db.get_script_pubkey_outpoints(&script_pubkey, None)?;
-        let outpoints_to_tx_out = self
-            .db
-            .get_tx_outs_with_mempool_spent_update(&outpoints, None)?;
+        let outpoints = self.db.get_script_pubkey_outpoints(&script_pubkey, false)?;
+        let outpoints_to_tx_out = self.get_tx_outs(&outpoints)?;
 
         // if outpoints.len() != outpoints_to_tx_out.len() {
         //     error!(
@@ -414,11 +455,15 @@ impl Index {
     }
 
     pub fn get_transaction_raw(&self, txid: &SerializedTxid) -> Result<Vec<u8>> {
-        Ok(self.db.get_transaction_raw(txid, None)?)
+        Ok(self.db.get_transaction_raw(txid, false)?)
     }
 
     pub fn get_transaction(&self, txid: &SerializedTxid) -> Result<Transaction> {
-        Ok(self.db.get_transaction(txid, None)?)
+        let status = self.get_transaction_status(txid)?;
+        let mempool = status == TransactionStatus::unconfirmed();
+        let tx = self.db.get_transaction(txid, mempool)?;
+        let (inputs, outputs) = self.get_inputs_outputs_from_transaction(&tx, txid)?;
+        Ok(Transaction::from((tx, status, inputs, outputs)))
     }
 
     pub fn get_inputs_outputs_from_transaction(
@@ -426,23 +471,55 @@ impl Index {
         transaction: &BitcoinTransaction,
         txid: &SerializedTxid,
     ) -> Result<(Vec<Option<TxOut>>, Vec<Option<TxOut>>)> {
-        Ok(self
-            .db
-            .get_inputs_outputs_from_transaction(transaction, txid)?)
+        let prev_outpoints = transaction
+            .input
+            .iter()
+            .map(|tx_in| tx_in.previous_output.into())
+            .collect::<Vec<SerializedOutPoint>>();
+
+        let outpoints = transaction
+            .output
+            .iter()
+            .enumerate()
+            .map(|(vout, _)| SerializedOutPoint::from_txid_vout(txid, vout as u32))
+            .collect::<Vec<_>>();
+
+        let all_outpoints = prev_outpoints
+            .iter()
+            .chain(outpoints.iter())
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let mut outputs_map = self.get_tx_outs(&all_outpoints)?;
+
+        let inputs = prev_outpoints
+            .iter()
+            .map(|outpoint| outputs_map.remove(outpoint))
+            .collect::<Vec<_>>();
+
+        let outputs = outpoints
+            .iter()
+            .map(|outpoint| outputs_map.remove(outpoint))
+            .collect::<Vec<_>>();
+
+        Ok((inputs, outputs))
     }
 
     pub fn get_transaction_status(&self, txid: &SerializedTxid) -> Result<TransactionStatus> {
-        let result = self.db.get_transaction_confirming_block(txid);
-        match result {
+        match self.db.get_transaction_confirming_block(txid) {
             Ok(block_id) => Ok(block_id.into_transaction_status()),
-            Err(StoreError::NotFound(_)) => {
-                // If the transaction is not found, we will return a not found error.
-                self.db.get_transaction_raw(txid, None)?;
-
-                // If it's found, then it's unconfirmed.
-                Ok(TransactionStatus::unconfirmed())
+            Err(RocksDBError::NotFound(_)) => {
+                // Not confirmed, check if it exists in mempool.
+                if self.db.is_tx_in_mempool(txid)? {
+                    Ok(TransactionStatus::unconfirmed())
+                } else {
+                    Err(IndexError::from(RocksDBError::NotFound(format!(
+                        "transaction not found: {}",
+                        txid
+                    ))))
+                }
             }
-            Err(e) => Err(IndexError::StoreError(e)),
+            Err(e) => Err(IndexError::from(e)),
         }
     }
 

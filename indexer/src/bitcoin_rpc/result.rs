@@ -1,8 +1,3 @@
-use {
-    bitcoincore_rpc::{Client, RpcApi},
-    std::{thread, time::Duration},
-    thiserror::Error,
-};
 
 pub trait BitcoinCoreRpcResultExt<T> {
     fn into_option(self) -> Result<Option<T>, bitcoincore_rpc::Error>;

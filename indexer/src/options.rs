@@ -172,6 +172,10 @@ pub struct Options {
     /// Enable file logging
     #[arg(long, default_value = "false")]
     pub(super) enable_file_logging: bool,
+
+    /// Enable alkanes
+    #[arg(long, default_value = "false")]
+    pub(super) enable_alkanes: bool,
 }
 
 impl Options {

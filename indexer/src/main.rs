@@ -5,7 +5,7 @@ use db::RocksDB;
 use index::{Index, Settings};
 use options::Options;
 use server::{Server, ServerConfig};
-use std::{io, panic, sync::Arc};
+use std::{io, panic, sync::{Arc, Mutex}};
 use subscription::{
     shutdown_and_wait_subscription_tasks, spawn_subscription_tasks, SubscriptionSpawnResult,
     WebhookSubscriptionManager,
@@ -66,15 +66,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         options.bitcoin_rpc_pool_size as usize,
     );
 
+    let alkanes_indexer = if options.enable_alkanes {
+        Some(Arc::new(Mutex::new(
+            alkanes::indexer::AlkanesIndexer::new(db_arc.clone())
+                .map_err(|e| {
+                    error!("Failed to initialize Alkanes indexer: {}", e);
+                    std::process::exit(1);
+                })
+                .unwrap(),
+        )))
+    } else {
+        None
+    };
+
     let index = Arc::new(Index::new(
         db_arc.clone(),
         bitcoin_rpc_pool.clone(),
         settings.clone(),
         event_sender,
+        alkanes_indexer.clone(),
     ));
     index.validate_index()?;
-
-    let alkanes_indexer = Arc::new(alkanes::indexer::AlkanesIndexer::new(db_arc.clone()));
 
     // 7. Spawn background threads (indexer, ZMQ listener, etc.)
     //    We also receive a signal (`index_shutdown_rx`) that fires when the indexer thread
@@ -88,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = Server;
     let http_server_jh = server.start(
         index.clone(),
-        alkanes_indexer,
+        alkanes_indexer.clone(),
         webhook_subscription_manager
             .unwrap_or(Arc::new(WebhookSubscriptionManager::new(db_arc.clone()))),
         bitcoin_rpc_pool.clone(),

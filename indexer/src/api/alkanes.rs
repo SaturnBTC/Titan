@@ -125,7 +125,7 @@ async fn get_bytecode_logic(
         }),
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("getbytecode".to_string(), &payload, height)
         .await
@@ -139,7 +139,7 @@ async fn get_bytecode(
     Extension(index): Extension<Arc<Index>>,
     Path(alkane_id): Path<PathAlkaneId>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     get_bytecode_logic(alkanes_indexer, index, alkane_id, height).await
 }
 
@@ -168,7 +168,7 @@ async fn by_address_logic(
         }),
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("protorunesbyaddress".to_string(), &payload, height)
         .await
@@ -184,7 +184,7 @@ async fn by_address(
     Extension(index): Extension<Arc<Index>>,
     Path(address): Path<Address<bitcoin::address::NetworkUnchecked>>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     by_address_logic(alkanes_indexer, index, address, height).await
 }
 
@@ -209,7 +209,7 @@ async fn by_outpoint_logic(
         protocol: Some(protorune_proto::protorune::Uint128 { lo: 1, hi: 0 }),
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("protorunesbyoutpoint".to_string(), &payload, height)
         .await
@@ -225,7 +225,7 @@ async fn by_outpoint(
     Extension(index): Extension<Arc<Index>>,
     Path(outpoint): Path<SerializedOutPoint>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     by_outpoint_logic(alkanes_indexer, index, outpoint, height).await
 }
 
@@ -249,7 +249,7 @@ async fn trace_outpoint_logic(
         vout: outpoint.vout(),
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("trace".to_string(), &payload, height)
         .await
@@ -265,7 +265,7 @@ async fn trace_outpoint(
     Extension(index): Extension<Arc<Index>>,
     Path(outpoint): Path<SerializedOutPoint>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     trace_outpoint_logic(alkanes_indexer, index, outpoint, height).await
 }
 
@@ -294,7 +294,7 @@ async fn get_inventory_logic(
         }),
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("getinventory".to_string(), &payload, height as u32)
         .await
@@ -310,7 +310,7 @@ async fn get_inventory(
     Extension(index): Extension<Arc<Index>>,
     Path(alkane_id): Path<PathAlkaneId>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     get_inventory_logic(alkanes_indexer, index, alkane_id, height).await
 }
 
@@ -341,7 +341,7 @@ async fn get_storage_at_logic(
         path: hex::decode(key).map_err(|e| ServerError::BadRequest(e.to_string()))?,
     };
     let mut payload = Vec::new();
-    request.encode(&mut payload).unwrap();
+    request.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
     let result = alkanes_indexer
         .view("getstorageat".to_string(), &payload, height)
         .await
@@ -357,7 +357,7 @@ async fn get_storage_at(
     Extension(index): Extension<Arc<Index>>,
     Path((alkane_id, key)): Path<(PathAlkaneId, String)>,
 ) -> ServerResult {
-    let height = index.get_block_count().unwrap_or(0) as u32;
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
     get_storage_at_logic(alkanes_indexer, index, alkane_id, key, height).await
 }
 
@@ -437,7 +437,7 @@ async fn simulate(
 
 ) -> ServerResult {
 
-    let height = index.get_block_count().unwrap_or(0);
+    let height = index.get_block_count().map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
             let alkanes = request
 
@@ -479,7 +479,7 @@ async fn simulate(
 
                 .collect();
 
-            let target = alkanes_proto::alkanes::AlkaneId {
+            let _target = alkanes_proto::alkanes::AlkaneId {
 
                 block: Some(alkanes_proto::alkanes::Uint128 {
 
@@ -499,17 +499,17 @@ async fn simulate(
 
             };
 
-                let inputs: Vec<alkanes_proto::alkanes::Uint128> = request.inputs.iter().map(|i| alkanes_proto::alkanes::Uint128 { lo: *i as u64, hi: (*i >> 64) as u64}).collect();
+                let _inputs: Vec<alkanes_proto::alkanes::Uint128> = request.inputs.iter().map(|i| alkanes_proto::alkanes::Uint128 { lo: *i as u64, hi: (*i >> 64) as u64}).collect();
 
                 let mut calldata = Vec::new();
 
-                leb128::write::unsigned(&mut calldata, request.target.block as u64).unwrap();
+                leb128::write::unsigned(&mut calldata, request.target.block as u64).map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
-                leb128::write::unsigned(&mut calldata, request.target.tx as u64).unwrap();
+                leb128::write::unsigned(&mut calldata, request.target.tx as u64).map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
                 for input in request.inputs.iter() {
 
-                    leb128::write::unsigned(&mut calldata, *input as u64).unwrap();
+                    leb128::write::unsigned(&mut calldata, *input as u64).map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
                 }
 
@@ -519,7 +519,7 @@ async fn simulate(
 
                 alkanes,
 
-                transaction: hex::decode(request.transaction).unwrap(),
+                transaction: hex::decode(request.transaction).map_err(|e| ServerError::BadRequest(e.to_string()))?,
 
                 height: request.height,
 
@@ -527,7 +527,7 @@ async fn simulate(
 
                 calldata,
 
-                block: hex::decode(request.block).unwrap(),
+                block: hex::decode(request.block).map_err(|e| ServerError::BadRequest(e.to_string()))?,
 
                 vout: request.vout,
 
@@ -539,7 +539,7 @@ async fn simulate(
 
         let mut payload = Vec::new();
 
-        parcel.encode(&mut payload).unwrap();
+        parcel.encode(&mut payload).map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
         let result = alkanes_indexer
 
