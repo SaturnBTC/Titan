@@ -21,7 +21,11 @@ use {
     axum_server::Handle,
     bitcoin::{address::NetworkUnchecked, Address, BlockHash},
     http::{header, StatusCode},
-    std::{io, net::ToSocketAddrs, sync::{Arc, Mutex}},
+    std::{
+        io,
+        net::ToSocketAddrs,
+        sync::{Arc, Mutex},
+    },
     titan_types::{
         query, InscriptionId, Pagination, SerializedOutPoint, SerializedTxid, Subscription,
     },

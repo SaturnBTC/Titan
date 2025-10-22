@@ -1,6 +1,6 @@
 use anyhow::Result;
 use metashrew_runtime::{BatchLike, KeyValueStoreLike};
-use rocksdb::{IteratorMode, Direction};
+use rocksdb::{Direction, IteratorMode};
 use std::sync::{Arc, Mutex};
 
 use crate::db::{RocksDB, RocksDBError};
@@ -17,7 +17,8 @@ pub struct AlkanesBatch {
 
 impl BatchLike for AlkanesBatch {
     fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, key: K, value: V) {
-        self.puts.insert(key.as_ref().to_vec(), value.as_ref().to_vec());
+        self.puts
+            .insert(key.as_ref().to_vec(), value.as_ref().to_vec());
     }
 
     fn delete<K: AsRef<[u8]>>(&mut self, key: K) {
@@ -97,7 +98,9 @@ impl KeyValueStoreLike for AlkanesRocksDBStore {
 
     fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, key: K, value: V) -> Result<(), Self::Error> {
         let mut batch = self.batch.lock().map_err(|_| RocksDBError::LockPoisoned)?;
-        batch.puts.insert(key.as_ref().to_vec(), value.as_ref().to_vec());
+        batch
+            .puts
+            .insert(key.as_ref().to_vec(), value.as_ref().to_vec());
         Ok(())
     }
 

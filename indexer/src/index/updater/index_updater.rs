@@ -1,9 +1,9 @@
 use {
-    crate::alkanes::indexer::AlkanesIndexer,
     super::{
         transaction_update::{TransactionChangeSet, TransactionUpdate},
         *,
     },
+    crate::alkanes::indexer::AlkanesIndexer,
     crate::{
         bitcoin_rpc::{RpcClientError, RpcClientPool, RpcClientPoolError},
         index::{
@@ -417,7 +417,10 @@ impl Updater {
         let client = self.bitcoin_rpc_pool.get()?;
 
         // Get current mempool transactions
-        let lock = self.broadcast_lock.lock().map_err(|_| UpdaterError::Mutex)?;
+        let lock = self
+            .broadcast_lock
+            .lock()
+            .map_err(|_| UpdaterError::Mutex)?;
         let current_mempool = {
             let current_mempool = client.get_raw_mempool_verbose()?;
             current_mempool
@@ -679,7 +682,11 @@ impl Updater {
 
         for (i, tx) in bitcoin_block.txdata.iter().enumerate() {
             let txid = tx.compute_txid().into();
-            match transaction_parser.parse(cache, u32::try_from(i).map_err(|_| UpdaterError::Mutex)?, tx) {
+            match transaction_parser.parse(
+                cache,
+                u32::try_from(i).expect("transaction index exceeds u32::MAX"),
+                tx,
+            ) {
                 Ok(result) => {
                     debug!("Indexing tx {} in block {}", txid, block_height);
                     transaction_updater.save(
@@ -737,7 +744,10 @@ impl Updater {
             MempoolCache::new(self.db.clone(), MempoolCacheSettings::new(&self.settings))?;
         let mut events = Events::new();
 
-        let _lock = self.broadcast_lock.lock().map_err(|_| UpdaterError::Mutex)?;
+        let _lock = self
+            .broadcast_lock
+            .lock()
+            .map_err(|_| UpdaterError::Mutex)?;
         if self.index_tx(txid, tx, mempool_entry.clone(), &mut cache, &mut events)? {
             events.add_event(Event::TransactionSubmitted {
                 txid: *txid,
@@ -979,9 +989,7 @@ impl Updater {
             if !categorized.removed.is_empty() {
                 let (_, not_exists) = {
                     let db = self.db.read();
-                    db.partition_transactions_by_existence(
-                        &categorized.removed,
-                    )?
+                    db.partition_transactions_by_existence(&categorized.removed)?
                 };
 
                 sender.blocking_send(Event::TransactionsReplaced { txids: not_exists })?;
