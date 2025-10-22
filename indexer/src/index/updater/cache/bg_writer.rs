@@ -97,7 +97,10 @@ impl BgWriter {
         self.pending_batches.push(batch.clone());
 
         if let Some(sender) = &self.sender {
-            if let Err(e) = sender.send(BgMessage { batch, notify: None }) {
+            if let Err(e) = sender.send(BgMessage {
+                batch,
+                notify: None,
+            }) {
                 error!("Failed to send batch to background writer: {:?}", e);
             }
         }

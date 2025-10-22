@@ -420,8 +420,11 @@ impl RocksDB {
 
     pub fn set_is_at_tip(&self, value: bool) -> DBResult<()> {
         let cf_handle = self.cf_handle(STATS_CF)?;
-        self.db
-            .put_cf(&cf_handle, IS_AT_TIP_KEY, (value as u64).to_le_bytes().to_vec())?;
+        self.db.put_cf(
+            &cf_handle,
+            IS_AT_TIP_KEY,
+            (value as u64).to_le_bytes().to_vec(),
+        )?;
         Ok(())
     }
 

@@ -2,11 +2,8 @@ use crate::{
     alkanes::store::{AlkanesBatch, AlkanesRocksDBStore},
     db::RocksDB,
 };
-use bitcoin::{
-    consensus::serialize,
-    Block as BitcoinBlock,
-};
 use anyhow::{anyhow, Error};
+use bitcoin::{consensus::serialize, Block as BitcoinBlock};
 use metashrew_runtime::MetashrewRuntime;
 use std::sync::{Arc, Mutex};
 
@@ -33,7 +30,11 @@ impl AlkanesIndexer {
     }
 
     pub fn index_block(&mut self, block: &BitcoinBlock, height: u64) -> Result<(), Error> {
-        let mut context = self.runtime.context.lock().map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
+        let mut context = self
+            .runtime
+            .context
+            .lock()
+            .map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
         context.block = serialize(block);
         context.height = height as u32;
         drop(context);
@@ -42,7 +43,10 @@ impl AlkanesIndexer {
     }
 
     pub fn take_batch(&mut self) -> Result<AlkanesBatch, Error> {
-        let mut batch = self.batch.lock().map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
+        let mut batch = self
+            .batch
+            .lock()
+            .map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
         Ok(std::mem::take(&mut *batch))
     }
 

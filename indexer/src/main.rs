@@ -5,7 +5,10 @@ use db::RocksDB;
 use index::{Index, Settings};
 use options::Options;
 use server::{Server, ServerConfig};
-use std::{io, panic, sync::{Arc, Mutex}};
+use std::{
+    io, panic,
+    sync::{Arc, Mutex},
+};
 use subscription::{
     shutdown_and_wait_subscription_tasks, spawn_subscription_tasks, SubscriptionSpawnResult,
     WebhookSubscriptionManager,
@@ -16,6 +19,7 @@ use tokio::{
 };
 use tracing::{error, info};
 
+mod alkanes;
 mod api;
 mod bitcoin_rpc;
 mod db;
@@ -25,7 +29,6 @@ mod options;
 mod server;
 mod subscription;
 mod util;
-mod alkanes;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

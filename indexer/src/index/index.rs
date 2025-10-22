@@ -2,13 +2,13 @@ use {
     super::{
         metrics::Metrics,
         settings::Settings,
+        store::{Store, StoreError},
         updater::Updater,
         zmq::ZmqManager,
     },
     crate::{
         alkanes::indexer::AlkanesIndexer,
         bitcoin_rpc::{RpcClientError, RpcClientPool},
-        db::{RocksDB, RocksDBError},
         index::updater::{ReorgError, UpdaterError},
         models::{block_id_to_transaction_status, Inscription, RuneEntry},
     },
@@ -35,7 +35,7 @@ use {
 #[derive(Debug, thiserror::Error)]
 pub enum IndexError {
     #[error("db error: {0}")]
-    RocksDBError(#[from] crate::db::RocksDBError),
+    StoreError(#[from] StoreError),
     #[error("invalid index: {0}")]
     InvalidIndex(String),
     #[error("invalid best block hash: {0}")]
@@ -51,7 +51,7 @@ pub enum IndexError {
 type Result<T> = std::result::Result<T, IndexError>;
 
 pub struct Index {
-    db: Arc<RocksDB>,
+    db: Arc<dyn Store + Send + Sync>,
     settings: Settings,
     updater: Arc<Updater>,
 
@@ -62,7 +62,7 @@ pub struct Index {
 
 impl Index {
     pub fn new(
-        db: Arc<RocksDB>,
+        db: Arc<dyn Store + Send + Sync>,
         bitcoin_rpc_pool: RpcClientPool,
         settings: Settings,
         sender: Option<Sender<Event>>,
@@ -78,7 +78,7 @@ impl Index {
             db: db.clone(),
             settings: settings.clone(),
             updater: Arc::new(Updater::new(
-                db.clone(),
+                crate::index::updater::downcast::downcast_arc(db.clone()).unwrap(),
                 bitcoin_rpc_pool,
                 settings.clone(),
                 &metrics,
@@ -508,12 +508,12 @@ impl Index {
     pub fn get_transaction_status(&self, txid: &SerializedTxid) -> Result<TransactionStatus> {
         match self.db.get_transaction_confirming_block(txid) {
             Ok(block_id) => Ok(block_id.into_transaction_status()),
-            Err(RocksDBError::NotFound(_)) => {
+            Err(StoreError::NotFound(_)) => {
                 // Not confirmed, check if it exists in mempool.
                 if self.db.is_tx_in_mempool(txid)? {
                     Ok(TransactionStatus::unconfirmed())
                 } else {
-                    Err(IndexError::from(RocksDBError::NotFound(format!(
+                    Err(IndexError::from(StoreError::NotFound(format!(
                         "transaction not found: {}",
                         txid
                     ))))

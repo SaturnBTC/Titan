@@ -157,7 +157,10 @@ impl BlockCache {
             })
             .collect::<HashMap<SerializedTxid, Vec<TransactionStateChangeInput>>>();
 
-        let blocks_by_height = blocks.into_iter().map(|(_, block)| (block.height, block)).collect();
+        let blocks_by_height = blocks
+            .into_iter()
+            .map(|(_, block)| (block.height, block))
+            .collect();
         Ok((blocks_by_height, spent_outpoints))
     }
 
