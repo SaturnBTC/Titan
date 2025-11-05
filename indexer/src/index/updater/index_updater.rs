@@ -894,6 +894,27 @@ impl Updater {
             height, depth
         );
 
+        // Calculate the target height after rollback
+        let target_height = height - depth;
+
+        // Rollback alkanes state if enabled
+        if let Some(alkanes_indexer) = &self.alkanes_indexer {
+            info!("Rolling back alkanes state to height {}", target_height);
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    alkanes_indexer
+                        .lock()
+                        .map_err(|_| UpdaterError::Mutex)?
+                        .rollback_to_height(target_height)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to rollback alkanes state: {}", e);
+                            UpdaterError::Alkanes(e)
+                        })
+                })
+            })?;
+        }
+
         {
             let db = self.db.write();
 
@@ -902,7 +923,7 @@ impl Updater {
             // the current block count). Since that block has not been written to the database yet, we only
             // want to keep blocks strictly below `height`. Therefore, after reverting `depth` blocks, the
             // new block count must be `height - depth` (the last retained height + 1).
-            db.set_block_count(height - depth)?;
+            db.set_block_count(target_height)?;
         }
 
         // Find rolled back blocks and revert those txs.
@@ -1021,7 +1042,7 @@ impl Updater {
         let id = RuneId { block: 1, tx: 0 };
         let etching = SerializedTxid::all_zeros();
 
-        let rune = RuneEntry {
+        let _rune = RuneEntry {
             block: id.block,
             burned: 0,
             divisibility: 0,

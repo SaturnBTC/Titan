@@ -3,7 +3,7 @@ use {
         api::{content::ContentError, ApiError},
         bitcoin_rpc::{RpcClientError, RpcClientPoolError},
         db::RocksDBError,
-        index::IndexError,
+        index::{IndexError, StoreError},
     },
     axum::response::{IntoResponse, Response},
     http::{header, HeaderValue, StatusCode},
@@ -38,8 +38,8 @@ impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         match self {
             Self::BadRequest(message) => (StatusCode::BAD_REQUEST, message).into_response(),
-            Self::ApiError(ApiError::IndexError(IndexError::RocksDBError(
-                RocksDBError::NotFound(message),
+            Self::ApiError(ApiError::IndexError(IndexError::StoreError(
+                StoreError::DB(RocksDBError::NotFound(message)),
             ))) => (StatusCode::NOT_FOUND, message).into_response(),
             Self::ApiError(ApiError::RpcError(error)) => {
                 error!("rpc error: {error}");

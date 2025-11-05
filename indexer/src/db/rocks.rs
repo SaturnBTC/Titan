@@ -466,7 +466,7 @@ impl RocksDB {
         let values = self.db.multi_get_cf(keys);
 
         let mut result = Vec::new();
-        for (i, value) in values.iter().enumerate() {
+        for (_i, value) in values.iter().enumerate() {
             if let Ok(Some(value)) = value {
                 result.push(BlockHash::from_slice(&value[..]).unwrap());
             }

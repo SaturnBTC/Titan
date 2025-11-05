@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use axum_server::Handle;
 use bitcoin_rpc::{validate_rpc_connection, RpcClientPool, RpcClientProvider};
 use clap::Parser;

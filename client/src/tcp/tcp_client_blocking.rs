@@ -237,7 +237,7 @@ impl Drop for TcpClient {
         // Attempt to join the thread directly in the destructor
         // This is safe because we're taking ownership of the JoinHandle
         if let Ok(mut worker_lock) = self.worker_thread.lock() {
-            if let Some(handle) = worker_lock.take() {
+            if let Some(_handle) = worker_lock.take() {
                 // Don't block for too long in a destructor - it's generally not good practice
                 // Just log that we're not waiting for the thread
                 info!("TcpClient dropped, thread will continue running until shutdown completes");

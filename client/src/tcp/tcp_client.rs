@@ -218,11 +218,11 @@ impl AsyncTcpClient {
 
             // Ping-pong monitoring
             let ping_interval = reconnect_settings.ping_interval;
-            let pong_timeout = reconnect_settings.pong_timeout;
-            let mut last_pong_time = std::time::Instant::now();
+            let _pong_timeout = reconnect_settings.pong_timeout;
+            let _last_pong_time = std::time::Instant::now();
             let mut ping_timer = tokio::time::interval(ping_interval);
             ping_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-            let mut awaiting_pong = false;
+            let _awaiting_pong = false;
 
             loop {
                 // Before each connection attempt, check for a shutdown signal.

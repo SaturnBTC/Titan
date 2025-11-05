@@ -41,16 +41,16 @@ impl From<RawEnvelope> for ParsedEnvelope {
 
         let mut fields: BTreeMap<&[u8], Vec<&[u8]>> = BTreeMap::new();
 
-        let mut incomplete_field = false;
+        let mut _incomplete_field = false;
 
         for item in envelope.payload[..body.unwrap_or(envelope.payload.len())].chunks(2) {
             match item {
                 [key, value] => fields.entry(key).or_default().push(value),
-                _ => incomplete_field = true,
+                _ => _incomplete_field = true,
             }
         }
 
-        let duplicate_field = fields.iter().any(|(_key, values)| values.len() > 1);
+        let _duplicate_field = fields.iter().any(|(_key, values)| values.len() > 1);
 
         let content_encoding = Tag::ContentEncoding.take(&mut fields);
         let content_type = Tag::ContentType.take(&mut fields);

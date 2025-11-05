@@ -46,6 +46,8 @@ pub enum IndexError {
     RpcApiError(#[from] bitcoincore_rpc::Error),
     #[error("updater error: {0}")]
     UpdaterError(#[from] UpdaterError),
+    #[error("bitcoin decode error: {0}")]
+    BitcoinDecode(#[from] bitcoin::consensus::encode::Error),
 }
 
 type Result<T> = std::result::Result<T, IndexError>;
@@ -296,7 +298,7 @@ impl Index {
     }
 
     pub fn get_tx_out(&self, outpoint: &SerializedOutPoint) -> Result<TxOut> {
-        let mut tx_out = self.db.get_tx_out(outpoint, false)?;
+        let mut tx_out = self.db.get_tx_out(outpoint, Some(false))?;
         let spent_outpoints: HashMap<SerializedOutPoint, Option<SpenderReference>> =
             self.db.get_spent_outpoints_in_mempool(&vec![*outpoint])?;
         if let Some(Some(spent)) = spent_outpoints.get(outpoint) {
@@ -346,7 +348,7 @@ impl Index {
     }
 
     pub fn get_rune_id(&self, rune: &Rune) -> Result<RuneId> {
-        Ok(self.db.get_rune_id(&rune.0)?)
+        Ok(self.db.get_rune_id(&rune)?)
     }
 
     pub fn get_runes_count(&self) -> Result<u64> {
@@ -365,12 +367,12 @@ impl Index {
     ) -> Result<PaginationResponse<SerializedTxid>> {
         Ok(self
             .db
-            .get_last_rune_transactions(rune_id, pagination, mempool.unwrap_or(false))?)
+            .get_last_rune_transactions(rune_id, pagination, Some(mempool.unwrap_or(false)))?)
     }
 
     pub fn get_script_pubkey_outpoints(&self, address: &Address) -> Result<AddressData> {
         let script_pubkey = address.script_pubkey();
-        let outpoints = self.db.get_script_pubkey_outpoints(&script_pubkey, false)?;
+        let outpoints = self.db.get_script_pubkey_outpoints(&script_pubkey, Some(false))?;
         let outpoints_to_tx_out = self.get_tx_outs(&outpoints)?;
 
         // if outpoints.len() != outpoints_to_tx_out.len() {
@@ -455,13 +457,14 @@ impl Index {
     }
 
     pub fn get_transaction_raw(&self, txid: &SerializedTxid) -> Result<Vec<u8>> {
-        Ok(self.db.get_transaction_raw(txid, false)?)
+        Ok(self.db.get_transaction_raw(txid, Some(false))?)
     }
 
     pub fn get_transaction(&self, txid: &SerializedTxid) -> Result<Transaction> {
         let status = self.get_transaction_status(txid)?;
         let mempool = status == TransactionStatus::unconfirmed();
-        let tx = self.db.get_transaction(txid, mempool)?;
+        let tx_raw = self.db.get_transaction_raw(txid, Some(mempool))?;
+        let tx = bitcoin::consensus::deserialize::<BitcoinTransaction>(&tx_raw)?;
         let (inputs, outputs) = self.get_inputs_outputs_from_transaction(&tx, txid)?;
         Ok(Transaction::from((tx, status, inputs, outputs)))
     }
