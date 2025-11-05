@@ -649,20 +649,28 @@ impl Updater {
             .start_timer();
 
         if let Some(alkanes_indexer) = &self.alkanes_indexer {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    alkanes_indexer
-                        .lock()
-                        .map_err(|_| UpdaterError::Mutex)?
-                        .index_block(&bitcoin_block, height)
-                        .await
-                })
-            })?;
-            let batch = alkanes_indexer
+            // Check if alkanes should be indexed at this height
+            let should_index = alkanes_indexer
                 .lock()
                 .map_err(|_| UpdaterError::Mutex)?
-                .take_batch()?;
-            cache.add_misc_batch(batch.puts, batch.deletes);
+                .should_index_at_height(height);
+            
+            if should_index {
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(async {
+                        alkanes_indexer
+                            .lock()
+                            .map_err(|_| UpdaterError::Mutex)?
+                            .index_block(&bitcoin_block, height)
+                            .await
+                    })
+                })?;
+                let batch = alkanes_indexer
+                    .lock()
+                    .map_err(|_| UpdaterError::Mutex)?
+                    .take_batch()?;
+                cache.add_misc_batch(batch.puts, batch.deletes);
+            }
         }
 
         let mut transaction_parser =

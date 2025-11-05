@@ -1,39 +1,69 @@
 use crate::{
     alkanes::store::{AlkanesBatch, AlkanesRocksDBStore},
     db::RocksDB,
+    index::Chain,
 };
 use anyhow::{anyhow, Error};
 use bitcoin::{consensus::serialize, Block as BitcoinBlock};
 use metashrew_runtime::MetashrewRuntime;
 use std::sync::{Arc, Mutex};
 
-const ALKANES_WASM: &[u8] = include_bytes!("../../../vendor/alkanes.wasm");
+const ALKANES_WASM_MAINNET: &[u8] = include_bytes!("../../../vendor/alkanes_mainnet.wasm");
+const ALKANES_WASM_TESTNET: &[u8] = include_bytes!("../../../vendor/alkanes_testnet.wasm");
+const ALKANES_WASM_REGTEST: &[u8] = include_bytes!("../../../vendor/alkanes_regtest.wasm");
+
+// Mainnet alkanes activation height
+const MAINNET_ALKANES_START_HEIGHT: u64 = 880000;
 
 pub struct AlkanesIndexer {
     runtime: MetashrewRuntime<AlkanesRocksDBStore>,
     batch: Arc<Mutex<AlkanesBatch>>,
+    chain: Chain,
 }
 
 impl AlkanesIndexer {
-    pub async fn new(db: Arc<RocksDB>) -> Result<Self, Error> {
+    /// Returns the appropriate WASM binary for the given chain
+    fn get_wasm_for_chain(chain: Chain) -> &'static [u8] {
+        match chain {
+            Chain::Mainnet => ALKANES_WASM_MAINNET,
+            Chain::Testnet => ALKANES_WASM_TESTNET,
+            Chain::Testnet4 => ALKANES_WASM_TESTNET,
+            Chain::Signet => ALKANES_WASM_TESTNET,
+            Chain::Regtest => ALKANES_WASM_REGTEST,
+        }
+    }
+
+    /// Checks if alkanes indexing should be enabled at the given height for the chain
+    pub fn should_index_at_height(&self, height: u64) -> bool {
+        match self.chain {
+            Chain::Mainnet => height >= MAINNET_ALKANES_START_HEIGHT,
+            _ => true, // All other networks start from genesis
+        }
+    }
+
+    pub async fn new(db: Arc<RocksDB>, chain: Chain) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new(db, batch.clone());
         let engine = wasmtime::Engine::default();
-        let runtime = MetashrewRuntime::new(ALKANES_WASM, store, engine).await?;
+        let wasm = Self::get_wasm_for_chain(chain);
+        let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
         Ok(Self {
             runtime,
             batch,
+            chain,
         })
     }
 
-    pub async fn new_dummy() -> Result<Self, Error> {
+    pub async fn new_dummy(chain: Chain) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new_dummy();
         let engine = wasmtime::Engine::default();
-        let runtime = MetashrewRuntime::new(ALKANES_WASM, store, engine).await?;
+        let wasm = Self::get_wasm_for_chain(chain);
+        let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
         Ok(Self {
             runtime,
             batch,
+            chain,
         })
     }
 
