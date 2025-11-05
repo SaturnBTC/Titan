@@ -649,10 +649,15 @@ impl Updater {
             .start_timer();
 
         if let Some(alkanes_indexer) = &self.alkanes_indexer {
-            alkanes_indexer
-                .lock()
-                .map_err(|_| UpdaterError::Mutex)?
-                .index_block(&bitcoin_block, height)?;
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    alkanes_indexer
+                        .lock()
+                        .map_err(|_| UpdaterError::Mutex)?
+                        .index_block(&bitcoin_block, height)
+                        .await
+                })
+            })?;
             let batch = alkanes_indexer
                 .lock()
                 .map_err(|_| UpdaterError::Mutex)?

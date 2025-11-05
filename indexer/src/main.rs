@@ -72,6 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let alkanes_indexer = if options.enable_alkanes {
         Some(Arc::new(Mutex::new(
             alkanes::indexer::AlkanesIndexer::new(db_arc.clone())
+                .await
                 .map_err(|e| {
                     error!("Failed to initialize Alkanes indexer: {}", e);
                     std::process::exit(1);

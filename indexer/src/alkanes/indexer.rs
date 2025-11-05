@@ -15,30 +15,32 @@ pub struct AlkanesIndexer {
 }
 
 impl AlkanesIndexer {
-    pub fn new(db: Arc<RocksDB>) -> Result<Self, Error> {
+    pub async fn new(db: Arc<RocksDB>) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new(db, batch.clone());
-        let runtime = MetashrewRuntime::new(ALKANES_WASM, store)?;
+        let engine = wasmtime::Engine::default();
+        let runtime = MetashrewRuntime::new(ALKANES_WASM, store, engine).await?;
         Ok(Self { runtime, batch })
     }
 
-    pub fn new_dummy() -> Self {
+    pub async fn new_dummy() -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new_dummy();
-        let runtime = MetashrewRuntime::new(ALKANES_WASM, store).unwrap();
-        Self { runtime, batch }
+        let engine = wasmtime::Engine::default();
+        let runtime = MetashrewRuntime::new(ALKANES_WASM, store, engine).await?;
+        Ok(Self { runtime, batch })
     }
 
-    pub fn index_block(&mut self, block: &BitcoinBlock, height: u64) -> Result<(), Error> {
+    pub async fn index_block(&mut self, block: &BitcoinBlock, height: u64) -> Result<(), Error> {
         let mut context = self
             .runtime
             .context
             .lock()
-            .map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
+            .await;
         context.block = serialize(block);
         context.height = height as u32;
         drop(context);
-        self.runtime.run()?;
+        self.runtime.run().await?;
         Ok(())
     }
 
