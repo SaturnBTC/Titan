@@ -530,14 +530,14 @@ impl Drop for AsyncTcpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{SocketAddr, TcpListener};
-    use std::sync::Arc;
+    use std::net::SocketAddr;
+    
     use std::sync::Once;
     use titan_types::EventType;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener as TokioTcpListener;
-    use tokio::select;
-    use tokio::signal::unix::{signal, SignalKind};
+    
+    
     use tokio::sync::oneshot;
     use tokio::task::JoinHandle;
     use tokio::time::sleep;
@@ -815,7 +815,7 @@ mod tests {
         };
 
         info!("Subscribing to test server at {}", server_addr);
-        let rx = client
+        let _rx = client
             .subscribe(
                 &format!("127.0.0.1:{}", server_addr.port()),
                 subscription_request,
@@ -966,7 +966,7 @@ mod tests {
         };
 
         info!("Subscribing to non-existent server to test error handling");
-        let rx = client
+        let _rx = client
             .subscribe("127.0.0.1:1", subscription_request)
             .await
             .unwrap();
@@ -1018,7 +1018,7 @@ mod tests {
         };
 
         info!("Subscribing to non-existent server to trigger reconnection");
-        let rx = client
+        let _rx = client
             .subscribe("127.0.0.1:1", subscription_request)
             .await
             .unwrap();

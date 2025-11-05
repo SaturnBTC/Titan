@@ -179,7 +179,7 @@ impl<'de> Deserialize<'de> for SerializedOutPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::{hashes::Hash, OutPoint, Txid};
+    use bitcoin::{hashes::Hash, OutPoint};
     use borsh::{BorshDeserialize, BorshSerialize};
 
     /// Helper function to test borsh serialization roundtrip

@@ -82,10 +82,10 @@ impl Default for TcpClientConfig {
 /// signaled to shut down when the `TcpClient` is dropped, but the thread may continue
 /// running briefly after the client is dropped.
 ///
-/// ```
-/// # use client::tcp_client_blocking::{TcpClient, TcpClientConfig};
+/// ```no_run
+/// # use titan_client::{TitanTcpClientBlocking, TitanTcpClientBlockingConfig};
 /// # fn main() {
-/// let client = TcpClient::new(TcpClientConfig::default());
+/// let client = TitanTcpClientBlocking::new(TitanTcpClientBlockingConfig::default());
 /// // Use the client...
 ///
 /// // When done, ensure clean shutdown
@@ -558,7 +558,7 @@ fn subscribe(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{BufRead, Read, Write};
+    use std::io::{BufRead, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::thread;
     use std::time::Duration;
@@ -645,7 +645,7 @@ mod tests {
             subscribe: vec![EventType::TransactionsAdded],
         };
 
-        let rx = client
+        let _rx = client
             .subscribe(format!("{}", server_addr), subscription_request)
             .unwrap();
 
