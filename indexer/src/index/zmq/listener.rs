@@ -5,7 +5,7 @@ use {
         SubscribeError,
     },
     bitcoin::{consensus::encode, Transaction},
-    std::{sync::Arc, thread},
+    std::sync::Arc,
     tokio::sync::watch,
     tracing::{debug, error, info},
 };

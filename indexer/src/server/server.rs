@@ -5,6 +5,7 @@ use {
         ServerConfig,
     },
     crate::{
+        alkanes::indexer::AlkanesIndexer,
         api::{self, content::AcceptEncoding},
         bitcoin_rpc::RpcClientPool,
         index::Index,
@@ -20,7 +21,11 @@ use {
     axum_server::Handle,
     bitcoin::{address::NetworkUnchecked, Address, BlockHash},
     http::{header, StatusCode},
-    std::{io, net::ToSocketAddrs, sync::Arc},
+    std::{
+        io,
+        net::ToSocketAddrs,
+        sync::{Arc, Mutex},
+    },
     titan_types::{
         query, InscriptionId, Pagination, SerializedOutPoint, SerializedTxid, Subscription,
     },
@@ -51,6 +56,7 @@ impl Server {
     pub fn start(
         &self,
         index: Arc<Index>,
+        alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
         webhook_subscription_manager: Arc<WebhookSubscriptionManager>,
         bitcoin_rpc_pool: RpcClientPool,
         config: Arc<ServerConfig>,
@@ -99,7 +105,9 @@ impl Server {
             )
             .route("/subscription", post(Self::add_subscription))
             .route("/subscriptions", get(Self::subscriptions))
+            .merge(crate::api::alkanes::router())
             .layer(Extension(index))
+            .layer(Extension(alkanes_indexer))
             .layer(Extension(webhook_subscription_manager))
             .layer(Extension(config.clone()))
             .layer(Extension(bitcoin_rpc_pool))

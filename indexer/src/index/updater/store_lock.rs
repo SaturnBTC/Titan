@@ -1,16 +1,16 @@
 use {
-    crate::index::store::Store,
+    crate::db::RocksDB,
     std::sync::{Arc, RwLock},
 };
 
-pub struct StoreWithLock(RwLock<Arc<dyn Store + Send + Sync>>);
+pub struct StoreWithLock(RwLock<Arc<RocksDB>>);
 
 impl StoreWithLock {
-    pub fn new(db: Arc<dyn Store + Send + Sync>) -> Self {
+    pub fn new(db: Arc<RocksDB>) -> Self {
         Self(RwLock::new(db))
     }
 
-    pub fn read(&self) -> Arc<dyn Store + Send + Sync> {
+    pub fn read(&self) -> Arc<RocksDB> {
         let result = self.0.read();
         match result {
             Ok(db) => db.clone(),
@@ -18,7 +18,7 @@ impl StoreWithLock {
         }
     }
 
-    pub fn write(&self) -> Arc<dyn Store + Send + Sync> {
+    pub fn write(&self) -> Arc<RocksDB> {
         let result = self.0.write();
         match result {
             Ok(db) => db.clone(),

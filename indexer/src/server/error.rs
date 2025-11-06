@@ -2,6 +2,7 @@ use {
     crate::{
         api::{content::ContentError, ApiError},
         bitcoin_rpc::{RpcClientError, RpcClientPoolError},
+        db::RocksDBError,
         index::{IndexError, StoreError},
     },
     axum::response::{IntoResponse, Response},
@@ -11,7 +12,7 @@ use {
 };
 
 #[derive(Debug, thiserror::Error)]
-pub(super) enum ServerError {
+pub enum ServerError {
     #[error("bad request: {0}")]
     BadRequest(String),
 
@@ -31,15 +32,15 @@ pub(super) enum ServerError {
     NotFound(String),
 }
 
-pub(super) type ServerResult<T = Response> = Result<T, ServerError>;
+pub type ServerResult<T = Response> = Result<T, ServerError>;
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         match self {
             Self::BadRequest(message) => (StatusCode::BAD_REQUEST, message).into_response(),
-            Self::ApiError(ApiError::IndexError(IndexError::StoreError(StoreError::NotFound(
-                message,
-            )))) => (StatusCode::NOT_FOUND, message).into_response(),
+            Self::ApiError(ApiError::IndexError(IndexError::StoreError(
+                StoreError::DB(RocksDBError::NotFound(message)),
+            ))) => (StatusCode::NOT_FOUND, message).into_response(),
             Self::ApiError(ApiError::RpcError(error)) => {
                 error!("rpc error: {error}");
                 (StatusCode::BAD_REQUEST, error.to_string()).into_response()

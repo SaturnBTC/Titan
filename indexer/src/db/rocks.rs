@@ -33,6 +33,14 @@ use {
     wrapper::RuneIdWrapper,
 };
 
+use std::fmt;
+
+impl fmt::Debug for RocksDB {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RocksDB").finish()
+    }
+}
+
 pub struct RocksDB {
     db: DBWithThreadMode<MultiThreaded>,
     mempool_cache: RwLock<HashMap<SerializedTxid, MempoolEntry>>,
@@ -81,6 +89,7 @@ const STATS_CF: &str = "stats";
 const SETTINGS_CF: &str = "settings";
 
 const SUBSCRIPTIONS_CF: &str = "subscriptions";
+const ALKANES_CF: &str = "alkanes";
 
 const INDEX_ADDRESSES_KEY: &str = "index_addresses";
 const INDEX_BITCOIN_TRANSACTIONS_KEY: &str = "index_bitcoin_transactions";
@@ -152,6 +161,8 @@ impl RocksDB {
             ColumnFamilyDescriptor::new(SETTINGS_CF, cf_opts.clone());
         let subscriptions_cfd: ColumnFamilyDescriptor =
             ColumnFamilyDescriptor::new(SUBSCRIPTIONS_CF, cf_opts.clone());
+        let alkanes_cfd: ColumnFamilyDescriptor =
+            ColumnFamilyDescriptor::new(ALKANES_CF, cf_opts.clone());
 
         let mut db_opts = Options::default();
         db_opts.create_if_missing(true);
@@ -227,6 +238,7 @@ impl RocksDB {
                 transaction_confirming_block_cfd,
                 settings_cfd,
                 subscriptions_cfd,
+                alkanes_cfd,
             ],
         )?;
 
@@ -272,7 +284,7 @@ impl RocksDB {
         Ok(())
     }
 
-    fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily>> {
+    pub fn cf_handle(&self, name: &str) -> DBResult<Arc<BoundColumnFamily<'_>>> {
         match self.db.cf_handle(name) {
             None => Err(RocksDBError::InvalidHandle(name.to_string())),
             Some(handle) => Ok(handle),
@@ -408,8 +420,11 @@ impl RocksDB {
 
     pub fn set_is_at_tip(&self, value: bool) -> DBResult<()> {
         let cf_handle = self.cf_handle(STATS_CF)?;
-        self.db
-            .put_cf(&cf_handle, IS_AT_TIP_KEY, (value as u64).to_le_bytes().to_vec())?;
+        self.db.put_cf(
+            &cf_handle,
+            IS_AT_TIP_KEY,
+            (value as u64).to_le_bytes().to_vec(),
+        )?;
         Ok(())
     }
 
@@ -451,7 +466,7 @@ impl RocksDB {
         let values = self.db.multi_get_cf(keys);
 
         let mut result = Vec::new();
-        for (i, value) in values.iter().enumerate() {
+        for (_i, value) in values.iter().enumerate() {
             if let Ok(Some(value)) = value {
                 result.push(BlockHash::from_slice(&value[..]).unwrap());
             }
@@ -1980,5 +1995,21 @@ impl RocksDB {
         //    at the end of this function.
         //    That will release RocksDB file handles, locks, etc.
         Ok(())
+    }
+
+    pub(crate) fn get_cf<K: AsRef<[u8]>>(
+        &self,
+        cf: &Arc<BoundColumnFamily>,
+        key: K,
+    ) -> DBResult<Option<Vec<u8>>> {
+        self.db.get_cf(cf, key).map_err(RocksDBError::from)
+    }
+
+    pub(crate) fn iterator_cf<'a>(
+        &'a self,
+        cf: &Arc<BoundColumnFamily>,
+        mode: IteratorMode<'a>,
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>> + 'a {
+        self.db.iterator_cf(cf, mode)
     }
 }

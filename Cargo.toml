@@ -11,7 +11,7 @@ version = "0.1.0"
 titan-types = { version = "0.1.31" }
 
 async-trait = "0.1.86"
-axum = "0.8.1"
+axum = { version = "0.8.1", features = ["macros"] }
 axum-server = "0.7.1"
 bitcoin = { version = "0.32.5", features = ["serde"] }
 bitcoincore-rpc = "0.19.0"
@@ -33,7 +33,7 @@ serde = "1.0.216"
 serde_json = "1.0.133"
 serde_with = "3.11.0"
 thiserror = "2.0.8"
-tokio = { version = "1.38.0", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros", "signal"] }
 tower-http = { version = "0.6.2", features = ["compression-br", "compression-gzip", "cors"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.19"

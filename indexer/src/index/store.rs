@@ -43,7 +43,10 @@ impl From<RocksDBError> for StoreError {
     }
 }
 
-pub trait Store {
+use std::any::Any;
+
+pub trait Store: std::fmt::Debug + Any {
+    fn as_any(&self) -> &dyn Any;
     // settings
     fn is_index_addresses(&self) -> Result<Option<bool>, StoreError>;
     fn set_index_addresses(&self, value: bool) -> Result<(), StoreError>;
@@ -87,6 +90,10 @@ pub trait Store {
     fn is_tx_in_mempool(&self, txid: &SerializedTxid) -> Result<bool, StoreError>;
     fn get_mempool_txids(&self) -> Result<HashMap<SerializedTxid, MempoolEntry>, StoreError>;
     fn get_mempool_entry(&self, txid: &SerializedTxid) -> Result<MempoolEntry, StoreError>;
+    fn get_spent_outpoints_in_mempool(
+        &self,
+        outpoints: &[SerializedOutPoint],
+    ) -> Result<HashMap<SerializedOutPoint, Option<SpenderReference>>, StoreError>;
     fn get_mempool_entries(
         &self,
         txids: &[SerializedTxid],
@@ -175,6 +182,7 @@ pub trait Store {
     fn get_runes_count(&self) -> Result<u64, StoreError>;
     fn get_rune(&self, rune_id: &RuneId) -> Result<RuneEntry, StoreError>;
     fn get_rune_id(&self, rune: &Rune) -> Result<RuneId, StoreError>;
+    fn get_rune_id_by_number(&self, number: u64) -> Result<RuneId, StoreError>;
     fn get_runes_by_ids(
         &self,
         rune_ids: &Vec<RuneId>,
@@ -212,6 +220,10 @@ pub trait Store {
 }
 
 impl Store for RocksDB {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn is_index_addresses(&self) -> Result<Option<bool>, StoreError> {
         Ok(self.is_index_addresses()?)
     }
@@ -344,6 +356,13 @@ impl Store for RocksDB {
 
     fn get_mempool_entry(&self, txid: &SerializedTxid) -> Result<MempoolEntry, StoreError> {
         Ok(self.get_mempool_entry(txid)?)
+    }
+
+    fn get_spent_outpoints_in_mempool(
+        &self,
+        outpoints: &[SerializedOutPoint],
+    ) -> Result<HashMap<SerializedOutPoint, Option<SpenderReference>>, StoreError> {
+        Ok(self.get_spent_outpoints_in_mempool(outpoints)?)
     }
 
     fn get_mempool_entries(
@@ -479,7 +498,7 @@ impl Store for RocksDB {
         txid: &SerializedTxid,
         mempool: Option<bool>,
     ) -> Result<Transaction, StoreError> {
-        let (transaction, status, mempool) = if let Some(mempool) = mempool {
+        let (transaction, status, _mempool) = if let Some(mempool) = mempool {
             let status = if !mempool {
                 self.get_transaction_confirming_block(txid)?
                     .into_transaction_status()
@@ -609,6 +628,10 @@ impl Store for RocksDB {
 
     fn get_rune_id(&self, rune: &Rune) -> Result<RuneId, StoreError> {
         Ok(self.get_rune_id(&rune.0)?)
+    }
+
+    fn get_rune_id_by_number(&self, number: u64) -> Result<RuneId, StoreError> {
+        Ok(self.get_rune_id_by_number(number)?)
     }
 
     fn get_inscription(&self, inscription_id: &InscriptionId) -> Result<Inscription, StoreError> {

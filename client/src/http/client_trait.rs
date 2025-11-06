@@ -6,8 +6,7 @@ use bitcoin::{OutPoint, Txid};
 use reqwest::header::HeaderMap;
 use titan_types::{
     query, AddressData, Block, BlockTip, InscriptionId, MempoolEntry, Pagination,
-    PaginationResponse, RuneResponse, Status, Subscription, Transaction, TransactionStatus,
-    TxOut,
+    PaginationResponse, RuneResponse, Status, Subscription, Transaction, TransactionStatus, TxOut,
 };
 
 /// Trait for all **async** methods.

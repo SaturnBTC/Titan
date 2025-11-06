@@ -131,15 +131,10 @@ impl BlockCache {
         HashMap<u64, Block>,
         HashMap<SerializedTxid, Vec<TransactionStateChangeInput>>,
     )> {
-        let blocks = {
-            let blocks = db.read().get_blocks_by_heights(purge_count, block_count)?;
-            let mut result = HashMap::default();
-            for (_, block) in blocks {
-                result.insert(block.height, block);
-            }
-
-            result
-        };
+        let block_hashes = db
+            .read()
+            .get_block_hashes_by_height(purge_count, block_count)?;
+        let blocks = db.read().get_blocks_by_hashes(&block_hashes)?;
 
         let all_txids = blocks
             .values()
@@ -162,7 +157,11 @@ impl BlockCache {
             })
             .collect::<HashMap<SerializedTxid, Vec<TransactionStateChangeInput>>>();
 
-        Ok((blocks, spent_outpoints))
+        let blocks_by_height = blocks
+            .into_iter()
+            .map(|(_, block)| (block.height, block))
+            .collect();
+        Ok((blocks_by_height, spent_outpoints))
     }
 
     pub fn get_block_height_tip(&self) -> u64 {
@@ -230,7 +229,7 @@ impl BlockCache {
         }
 
         // 3. Fall back to the persistent store.
-        let tx_out = self.db.read().get_tx_out(outpoint, Some(false))?;
+        let tx_out = self.db.read().get_tx_out(outpoint, false)?;
         self.outpoints.put(*outpoint, tx_out.clone());
         Ok(tx_out)
     }
@@ -345,6 +344,11 @@ impl BlockCache {
                 });
             }
         }
+    }
+
+    pub fn add_misc_batch(&mut self, puts: HashMap<Vec<u8>, Vec<u8>>, deletes: HashSet<Vec<u8>>) {
+        self.update.misc.extend(puts);
+        self.delete.misc.extend(deletes);
     }
 
     pub fn should_flush(&self, max_size: usize) -> bool {
@@ -517,7 +521,7 @@ impl TransactionStore for BlockCache {
         }
 
         // 3. Fallback to DB.
-        let transaction_raw = self.db.read().get_transaction_raw(txid, None)?;
+        let transaction_raw = self.db.read().get_transaction_raw(txid, false)?;
         let tx: Transaction = consensus::deserialize(&transaction_raw)?;
         Ok(tx)
     }
@@ -603,7 +607,7 @@ impl TransactionStore for BlockCache {
         }
 
         // 4. DB.
-        self.db.read().get_rune_id(rune)?;
+        self.db.read().get_rune_id(&rune.0)?;
         self.rune_ids.insert(rune.0);
         Ok(())
     }

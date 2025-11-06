@@ -1,7 +1,8 @@
 use {
     super::rollback_cache::RollbackCache,
     crate::{
-        index::{store::Store, Settings, StoreError},
+        db::{RocksDB, RocksDBError},
+        index::{Settings, StoreError},
         models::{TransactionStateChange, TransactionStateChangeInput},
     },
     bitcoin::ScriptBuf,
@@ -10,13 +11,15 @@ use {
     std::sync::Arc,
     thiserror::Error,
     titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, SpentStatus},
-    tracing::{info, trace, warn},
+    tracing::{info, warn},
 };
 
 #[derive(Debug, Error)]
 pub enum RollbackError {
     #[error("store error {0}")]
     Store(#[from] StoreError),
+    #[error("db error {0}")]
+    RocksDB(#[from] RocksDBError),
     #[error("overflow in {0}")]
     Overflow(String),
 }
@@ -36,17 +39,13 @@ impl From<Settings> for RollbackSettings {
 }
 
 pub struct Rollback<'a> {
-    store: &'a Arc<dyn Store + Send + Sync>,
+    store: &'a Arc<RocksDB>,
     settings: RollbackSettings,
     cache: RollbackCache<'a>,
 }
 
 impl<'a> Rollback<'a> {
-    pub fn new(
-        store: &'a Arc<dyn Store + Send + Sync>,
-        settings: RollbackSettings,
-        mempool: bool,
-    ) -> Result<Self> {
+    pub fn new(store: &'a Arc<RocksDB>, settings: RollbackSettings, mempool: bool) -> Result<Self> {
         let cache = RollbackCache::new(store, mempool)?;
         Ok(Self {
             store,
@@ -270,9 +269,7 @@ impl<'a> Rollback<'a> {
             if !self.cache.mempool {
                 for input in tx.inputs.iter() {
                     if let Some(script_pubkey) = input.script_pubkey.clone() {
-                        let entry = script_pubkey_entries
-                            .entry(script_pubkey)
-                            .or_default();
+                        let entry = script_pubkey_entries.entry(script_pubkey).or_default();
 
                         if !spent_outpoints.contains(&input.previous_outpoint) {
                             entry.0.push(input.previous_outpoint);

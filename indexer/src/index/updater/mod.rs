@@ -4,6 +4,7 @@ pub use {
 };
 
 mod cache;
+pub mod downcast;
 mod events;
 mod fetcher;
 mod index_updater;

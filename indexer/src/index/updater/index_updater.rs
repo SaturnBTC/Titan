@@ -3,11 +3,11 @@ use {
         transaction_update::{TransactionChangeSet, TransactionUpdate},
         *,
     },
+    crate::alkanes::indexer::AlkanesIndexer,
     crate::{
         bitcoin_rpc::{RpcClientError, RpcClientPool, RpcClientPoolError},
         index::{
             metrics::Metrics,
-            store::Store,
             updater::{
                 cache::{BlockCache, BlockCacheSettings, MempoolCache, MempoolCacheSettings},
                 events::Events,
@@ -71,6 +71,8 @@ impl Display for ReorgError {
 pub enum UpdaterError {
     #[error("db error {0}")]
     DB(#[from] StoreError),
+    #[error("rocks db error {0}")]
+    RocksDB(#[from] crate::db::RocksDBError),
     #[error("bitcoin rpc error {0}")]
     BitcoinRpc(#[from] bitcoincore_rpc::Error),
     #[error("bitcoin reorg error {0}")]
@@ -95,6 +97,8 @@ pub enum UpdaterError {
     InvalidMainChainTip,
     #[error("bitcoin rpc pool error {0}")]
     BitcoinRpcPool(#[from] RpcClientPoolError),
+    #[error("alkanes error {0}")]
+    Alkanes(#[from] anyhow::Error),
 }
 
 type Result<T> = std::result::Result<T, UpdaterError>;
@@ -119,19 +123,21 @@ pub struct Updater {
 
     // monitoring
     latency: HistogramVec,
+    alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
 }
 
 impl Updater {
     pub fn new(
-        db: Arc<dyn Store + Send + Sync>,
+        db: Arc<crate::db::RocksDB>,
         bitcoin_rpc_pool: RpcClientPool,
         settings: Settings,
         metrics: &Metrics,
         shutdown_flag: Arc<AtomicBool>,
         sender: Option<Sender<Event>>,
+        alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
     ) -> Self {
         Self {
-            db: Arc::new(StoreWithLock::new(db)),
+            db: Arc::new(StoreWithLock::new(db.clone())),
             settings,
             bitcoin_rpc_pool,
             is_at_tip: AtomicBool::new(false),
@@ -145,6 +151,7 @@ impl Updater {
                 prometheus::HistogramOpts::new("indexer_latency", "Indexer latency"),
                 &["method"],
             ),
+            alkanes_indexer,
         }
     }
 
@@ -205,7 +212,7 @@ impl Updater {
             let was_at_tip = self.is_at_tip.swap(true, Ordering::AcqRel);
             let db = self.db.write();
             if !was_at_tip {
-                if let Err(e) = db.finish_bulk_load() {
+                if let Err(e) = db.switch_to_online_mode() {
                     warn!("Failed to switch database to online mode: {:?}", e);
                 }
             }
@@ -262,7 +269,7 @@ impl Updater {
             self.mark_as_not_at_tip();
 
             let progress_bar =
-                self.open_progress_bar(cache.get_block_height_tip(), chain_info.blocks);
+                self.open_progress_bar(cache.get_block_height_tip(), chain_info.blocks)?;
 
             let current_block_count = cache.get_block_count();
 
@@ -410,7 +417,10 @@ impl Updater {
         let client = self.bitcoin_rpc_pool.get()?;
 
         // Get current mempool transactions
-        let lock = self.broadcast_lock.lock().unwrap();
+        let lock = self
+            .broadcast_lock
+            .lock()
+            .map_err(|_| UpdaterError::Mutex)?;
         let current_mempool = {
             let current_mempool = client.get_raw_mempool_verbose()?;
             current_mempool
@@ -470,8 +480,8 @@ impl Updater {
 
             // Store mempool entries for new transactions
             for txid in &tx_order {
-                let tx = tx_map.get(txid).unwrap();
-                let mempool_entry = current_mempool.get(txid).unwrap();
+                let tx = tx_map.get(txid).ok_or(UpdaterError::Mutex)?;
+                let mempool_entry = current_mempool.get(txid).ok_or(UpdaterError::Mutex)?;
 
                 self.index_tx(
                     txid,
@@ -638,6 +648,31 @@ impl Updater {
             .with_label_values(&["index_block"])
             .start_timer();
 
+        if let Some(alkanes_indexer) = &self.alkanes_indexer {
+            // Check if alkanes should be indexed at this height
+            let should_index = alkanes_indexer
+                .lock()
+                .map_err(|_| UpdaterError::Mutex)?
+                .should_index_at_height(height);
+            
+            if should_index {
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(async {
+                        alkanes_indexer
+                            .lock()
+                            .map_err(|_| UpdaterError::Mutex)?
+                            .index_block(&bitcoin_block, height)
+                            .await
+                    })
+                })?;
+                let batch = alkanes_indexer
+                    .lock()
+                    .map_err(|_| UpdaterError::Mutex)?
+                    .take_batch()?;
+                cache.add_misc_batch(batch.puts, batch.deletes);
+            }
+        }
+
         let mut transaction_parser =
             TransactionParser::new(&rpc_client, self.settings.chain, height, false)?;
 
@@ -660,7 +695,11 @@ impl Updater {
 
         for (i, tx) in bitcoin_block.txdata.iter().enumerate() {
             let txid = tx.compute_txid().into();
-            match transaction_parser.parse(cache, u32::try_from(i).unwrap(), tx) {
+            match transaction_parser.parse(
+                cache,
+                u32::try_from(i).expect("transaction index exceeds u32::MAX"),
+                tx,
+            ) {
                 Ok(result) => {
                     debug!("Indexing tx {} in block {}", txid, block_height);
                     transaction_updater.save(
@@ -718,7 +757,10 @@ impl Updater {
             MempoolCache::new(self.db.clone(), MempoolCacheSettings::new(&self.settings))?;
         let mut events = Events::new();
 
-        let _lock = self.broadcast_lock.lock().unwrap();
+        let _lock = self
+            .broadcast_lock
+            .lock()
+            .map_err(|_| UpdaterError::Mutex)?;
         if self.index_tx(txid, tx, mempool_entry.clone(), &mut cache, &mut events)? {
             events.add_event(Event::TransactionSubmitted {
                 txid: *txid,
@@ -767,7 +809,7 @@ impl Updater {
         let height = cache.get_block_count();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| UpdaterError::Mutex)?
             .as_secs();
 
         let rpc_client = self.bitcoin_rpc_pool.get()?;
@@ -792,14 +834,15 @@ impl Updater {
         Ok(())
     }
 
-    fn open_progress_bar(&self, current_height: u64, total_height: u64) -> ProgressBar {
+    fn open_progress_bar(&self, current_height: u64, total_height: u64) -> Result<ProgressBar> {
         let progress_bar: ProgressBar = ProgressBar::new(total_height.into());
         progress_bar.set_position(current_height.into());
         progress_bar.set_style(
-            ProgressStyle::with_template("[indexing blocks] {wide_bar} {pos}/{len}").unwrap(),
+            ProgressStyle::with_template("[indexing blocks] {wide_bar} {pos}/{len}")
+                .map_err(|_| UpdaterError::Mutex)?,
         );
 
-        progress_bar
+        Ok(progress_bar)
     }
 
     fn detect_reorg(
@@ -859,6 +902,27 @@ impl Updater {
             height, depth
         );
 
+        // Calculate the target height after rollback
+        let target_height = height - depth;
+
+        // Rollback alkanes state if enabled
+        if let Some(alkanes_indexer) = &self.alkanes_indexer {
+            info!("Rolling back alkanes state to height {}", target_height);
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    alkanes_indexer
+                        .lock()
+                        .map_err(|_| UpdaterError::Mutex)?
+                        .rollback_to_height(target_height)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to rollback alkanes state: {}", e);
+                            UpdaterError::Alkanes(e)
+                        })
+                })
+            })?;
+        }
+
         {
             let db = self.db.write();
 
@@ -867,7 +931,7 @@ impl Updater {
             // the current block count). Since that block has not been written to the database yet, we only
             // want to keep blocks strictly below `height`. Therefore, after reverting `depth` blocks, the
             // new block count must be `height - depth` (the last retained height + 1).
-            db.set_block_count(height - depth)?;
+            db.set_block_count(target_height)?;
         }
 
         // Find rolled back blocks and revert those txs.
@@ -959,9 +1023,7 @@ impl Updater {
             if !categorized.removed.is_empty() {
                 let (_, not_exists) = {
                     let db = self.db.read();
-                    db.partition_transactions_by_existence(
-                        &categorized.removed.into_iter().collect(),
-                    )?
+                    db.partition_transactions_by_existence(&categorized.removed)?
                 };
 
                 sender.blocking_send(Event::TransactionsReplaced { txids: not_exists })?;
@@ -988,7 +1050,7 @@ impl Updater {
         let id = RuneId { block: 1, tx: 0 };
         let etching = SerializedTxid::all_zeros();
 
-        let rune = RuneEntry {
+        let _rune = RuneEntry {
             block: id.block,
             burned: 0,
             divisibility: 0,

@@ -22,14 +22,11 @@ pub use tcp::{TitanTcpClientBlocking, TitanTcpClientBlockingConfig, TitanTcpClie
 mod tests {
     use super::*;
     use std::error::Error;
-    use titan_types::{Event, TcpSubscriptionRequest};
-    use tokio::{
-        sync::watch,
-        time::{sleep, Duration, Instant},
-    };
+    use titan_types::TcpSubscriptionRequest;
+    use tokio::time::{Duration, Instant};
 
     // Import the HTTP and TCP client functions.
-    use crate::http::{AsyncClient as HttpClient, TitanApiAsync as TitanApi};
+    use crate::http::TitanApiAsync as TitanApi;
     #[cfg(feature = "tcp_client")]
     use crate::tcp::TitanTcpClient;
 

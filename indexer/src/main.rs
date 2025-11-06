@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use axum_server::Handle;
 use bitcoin_rpc::{validate_rpc_connection, RpcClientPool, RpcClientProvider};
 use clap::Parser;
@@ -5,7 +7,10 @@ use db::RocksDB;
 use index::{Index, Settings};
 use options::Options;
 use server::{Server, ServerConfig};
-use std::{io, panic, sync::Arc};
+use std::{
+    io, panic,
+    sync::{Arc, Mutex},
+};
 use subscription::{
     shutdown_and_wait_subscription_tasks, spawn_subscription_tasks, SubscriptionSpawnResult,
     WebhookSubscriptionManager,
@@ -16,6 +21,7 @@ use tokio::{
 };
 use tracing::{error, info};
 
+mod alkanes;
 mod api;
 mod bitcoin_rpc;
 mod db;
@@ -65,11 +71,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         options.bitcoin_rpc_pool_size as usize,
     );
 
+    let alkanes_indexer = if options.enable_alkanes {
+        Some(Arc::new(Mutex::new(
+            alkanes::indexer::AlkanesIndexer::new(db_arc.clone(), settings.chain)
+                .await
+                .map_err(|e| {
+                    error!("Failed to initialize Alkanes indexer: {}", e);
+                    std::process::exit(1);
+                })
+                .unwrap(),
+        )))
+    } else {
+        None
+    };
+
     let index = Arc::new(Index::new(
         db_arc.clone(),
         bitcoin_rpc_pool.clone(),
         settings.clone(),
         event_sender,
+        alkanes_indexer.clone(),
     ));
     index.validate_index()?;
 
@@ -85,6 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = Server;
     let http_server_jh = server.start(
         index.clone(),
+        alkanes_indexer.clone(),
         webhook_subscription_manager
             .unwrap_or(Arc::new(WebhookSubscriptionManager::new(db_arc.clone()))),
         bitcoin_rpc_pool.clone(),

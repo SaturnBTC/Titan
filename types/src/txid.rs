@@ -83,7 +83,7 @@ impl From<&SerializedTxid> for Txid {
 
 impl std::fmt::Debug for SerializedTxid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "SerializedTxid({})", self.to_string())
     }
 }
 

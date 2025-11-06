@@ -30,6 +30,7 @@ pub struct BatchUpdate {
     pub rune_count: u64,
     pub block_count: u64,
     pub purged_blocks_count: u64,
+    pub misc: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl BatchUpdate {
@@ -53,6 +54,7 @@ impl BatchUpdate {
             rune_count,
             block_count,
             purged_blocks_count,
+            misc: HashMap::default(),
         }
     }
 
@@ -72,6 +74,7 @@ impl BatchUpdate {
             && self.mempool_txs.is_empty()
             && self.transactions.is_empty()
             && self.transaction_confirming_block.is_empty()
+            && self.misc.is_empty()
     }
 
     /// Removes all per-batch collections while preserving the counter fields.
@@ -93,6 +96,7 @@ impl BatchUpdate {
         self.mempool_txs.clear();
         self.transactions.clear();
         self.transaction_confirming_block.clear();
+        self.misc.clear();
     }
 }
 
@@ -109,7 +113,7 @@ impl Display for BatchUpdate {
              runes: txs {}/ runes {}/ ids {}, \
              inscriptions: {}, \
              transactions: {}, \
-             transaction_confirming_block: {}]",
+             transaction_confirming_block: {}, misc: {}]",
             self.block_count,
             self.rune_count,
             self.purged_blocks_count,
@@ -126,6 +130,7 @@ impl Display for BatchUpdate {
             self.inscriptions.len(),
             self.transactions.len(),
             self.transaction_confirming_block.len(),
+            self.misc.len(),
         )
     }
 }

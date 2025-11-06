@@ -1,0 +1,552 @@
+use serde::{de, Deserialize, Deserializer};
+use std::str::FromStr;
+
+#[derive(Debug)]
+struct PathAlkaneId {
+    block: u64,
+    tx: u32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParsePathAlkaneIdError;
+
+impl FromStr for PathAlkaneId {
+    type Err = ParsePathAlkaneIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 2 {
+            return Err(ParsePathAlkaneIdError);
+        }
+        let block = parts[0].parse().map_err(|_| ParsePathAlkaneIdError)?;
+        let tx = parts[1].parse().map_err(|_| ParsePathAlkaneIdError)?;
+        Ok(PathAlkaneId { block, tx })
+    }
+}
+
+impl<'de> Deserialize<'de> for PathAlkaneId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(de::Error::custom)
+    }
+}
+
+impl std::fmt::Display for ParsePathAlkaneIdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid alkane id")
+    }
+}
+
+impl std::error::Error for ParsePathAlkaneIdError {}
+
+impl IntoResponse for ParsePathAlkaneIdError {
+    fn into_response(self) -> axum::response::Response {
+        (axum::http::StatusCode::BAD_REQUEST, self.to_string()).into_response()
+    }
+}
+
+use crate::{
+    alkanes::indexer::AlkanesIndexer,
+    index::Index,
+    server::error::{ServerError, ServerResult},
+};
+use alkanes_support::proto as alkanes_proto;
+use axum::{
+    extract::{Extension, Path},
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
+use bitcoin::Address;
+use prost::Message;
+use protorune_support::proto as protorune_proto;
+use std::sync::Arc;
+use titan_types::SerializedOutPoint;
+
+pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
+    Router::new()
+        .route("/alkanes/health", get(health_check))
+        .route("/alkanes/getbytecode/{alkane_id}", get(get_bytecode))
+        .route(
+            "/alkanes/getbytecode/{alkane_id}/atheight/{height}",
+            get(get_bytecode_at_height),
+        )
+        .route("/alkanes/byaddress/{address}", get(by_address))
+        .route(
+            "/alkanes/byaddress/{address}/atheight/{height}",
+            get(by_address_at_height),
+        )
+        .route("/alkanes/byoutpoint/{outpoint}", get(by_outpoint))
+        .route(
+            "/alkanes/byoutpoint/{outpoint}/atheight/{height}",
+            get(by_outpoint_at_height),
+        )
+        .route("/alkanes/trace/{outpoint}", get(trace_outpoint))
+        .route(
+            "/alkanes/trace/{outpoint}/atheight/{height}",
+            get(trace_outpoint_at_height),
+        )
+        .route("/alkanes/getinventory/{alkane_id}", get(get_inventory))
+        .route(
+            "/alkanes/getinventory/{alkane_id}/atheight/{height}",
+            get(get_inventory_at_height),
+        )
+        .route("/alkanes/getstorageat/{alkane_id}/{key}", get(get_storage_at))
+        .route(
+            "/alkanes/getstorageat/{alkane_id}/{key}/atheight/{height}",
+            get(get_storage_at_at_height),
+        )
+        .route("/alkanes/simulate", post(simulate))
+}
+
+async fn health_check() -> impl IntoResponse {
+    (axum::http::StatusCode::OK, Json("ok"))
+}
+
+async fn get_bytecode_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    _index: Arc<Index>,
+    alkane_id: PathAlkaneId,
+    height: u32,
+) -> ServerResult {
+    let request = alkanes_proto::alkanes::BytecodeRequest {
+        id: Some(alkanes_proto::alkanes::AlkaneId {
+            block: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.block as u64,
+                hi: 0,
+            }),
+            tx: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.tx as u64,
+                hi: 0,
+            }),
+        }),
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("getbytecode".to_string(), &payload, height)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(format!("0x{}", hex::encode(result))).into_response())
+}
+
+#[axum::debug_handler]
+async fn get_bytecode(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(alkane_id): Path<PathAlkaneId>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    get_bytecode_logic(alkanes_indexer, index, alkane_id, height).await
+}
+
+#[axum::debug_handler]
+async fn get_bytecode_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((alkane_id, height)): Path<(PathAlkaneId, u32)>,
+) -> ServerResult {
+    get_bytecode_logic(alkanes_indexer, index, alkane_id, height).await
+}
+
+async fn by_address_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    index: Arc<Index>,
+    address: Address<bitcoin::address::NetworkUnchecked>,
+    height: u32,
+) -> ServerResult {
+    let network = index.network();
+    let address = address
+        .require_network(network)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let request = protorune_proto::protorune::ProtorunesWalletRequest {
+        wallet: address.script_pubkey().as_bytes().to_vec(),
+        protocol_tag: Some(protorune_proto::protorune::Uint128 { lo: 1, hi: 0 }),
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("protorunesbyaddress".to_string(), &payload, height)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let response = protorune_proto::protorune::WalletResponse::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(response).into_response())
+}
+
+#[axum::debug_handler]
+async fn by_address(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(address): Path<Address<bitcoin::address::NetworkUnchecked>>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    by_address_logic(alkanes_indexer, index, address, height).await
+}
+
+#[axum::debug_handler]
+async fn by_address_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((address, height)): Path<(Address<bitcoin::address::NetworkUnchecked>, u32)>,
+) -> ServerResult {
+    by_address_logic(alkanes_indexer, index, address, height).await
+}
+
+async fn by_outpoint_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    _index: Arc<Index>,
+    outpoint: SerializedOutPoint,
+    height: u32,
+) -> ServerResult {
+    let request = protorune_proto::protorune::OutpointWithProtocol {
+        txid: outpoint.txid().to_vec(),
+        vout: outpoint.vout(),
+        protocol: Some(protorune_proto::protorune::Uint128 { lo: 1, hi: 0 }),
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("protorunesbyoutpoint".to_string(), &payload, height)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let response = protorune_proto::protorune::OutpointResponse::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(response).into_response())
+}
+
+#[axum::debug_handler]
+async fn by_outpoint(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(outpoint): Path<SerializedOutPoint>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    by_outpoint_logic(alkanes_indexer, index, outpoint, height).await
+}
+
+#[axum::debug_handler]
+async fn by_outpoint_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((outpoint, height)): Path<(SerializedOutPoint, u32)>,
+) -> ServerResult {
+    by_outpoint_logic(alkanes_indexer, index, outpoint, height).await
+}
+
+async fn trace_outpoint_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    _index: Arc<Index>,
+    outpoint: SerializedOutPoint,
+    height: u32,
+) -> ServerResult {
+    let request = protorune_proto::protorune::Outpoint {
+        txid: outpoint.txid().to_vec(),
+        vout: outpoint.vout(),
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("trace".to_string(), &payload, height)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let response = alkanes_proto::alkanes::AlkanesTrace::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(response).into_response())
+}
+
+#[axum::debug_handler]
+async fn trace_outpoint(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(outpoint): Path<SerializedOutPoint>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    trace_outpoint_logic(alkanes_indexer, index, outpoint, height).await
+}
+
+#[axum::debug_handler]
+async fn trace_outpoint_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((outpoint, height)): Path<(SerializedOutPoint, u32)>,
+) -> ServerResult {
+    trace_outpoint_logic(alkanes_indexer, index, outpoint, height).await
+}
+
+async fn get_inventory_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    _index: Arc<Index>,
+    alkane_id: PathAlkaneId,
+    height: u32,
+) -> ServerResult {
+    let request = alkanes_proto::alkanes::AlkaneInventoryRequest {
+        id: Some(alkanes_proto::alkanes::AlkaneId {
+            block: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.block as u64,
+                hi: 0,
+            }),
+            tx: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.tx as u64,
+                hi: 0,
+            }),
+        }),
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("getinventory".to_string(), &payload, height as u32)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let response = alkanes_proto::alkanes::AlkaneInventoryResponse::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(response).into_response())
+}
+
+#[axum::debug_handler]
+async fn get_inventory(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(alkane_id): Path<PathAlkaneId>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    get_inventory_logic(alkanes_indexer, index, alkane_id, height).await
+}
+
+#[axum::debug_handler]
+async fn get_inventory_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((alkane_id, height)): Path<(PathAlkaneId, u32)>,
+) -> ServerResult {
+    get_inventory_logic(alkanes_indexer, index, alkane_id, height).await
+}
+
+async fn get_storage_at_logic(
+    alkanes_indexer: Arc<AlkanesIndexer>,
+    _index: Arc<Index>,
+    alkane_id: PathAlkaneId,
+    key: String,
+    height: u32,
+) -> ServerResult {
+    let request = alkanes_proto::alkanes::AlkaneStorageRequest {
+        id: Some(alkanes_proto::alkanes::AlkaneId {
+            block: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.block as u64,
+                hi: 0,
+            }),
+            tx: Some(alkanes_proto::alkanes::Uint128 {
+                lo: alkane_id.tx as u64,
+                hi: 0,
+            }),
+        }),
+        path: hex::decode(key).map_err(|e| ServerError::BadRequest(e.to_string()))?,
+    };
+    let mut payload = Vec::new();
+    request
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let result = alkanes_indexer
+        .view("getstorageat".to_string(), &payload, height)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    let response = alkanes_proto::alkanes::AlkaneStorageResponse::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    Ok(Json(format!("0x{}", hex::encode(response.value))).into_response())
+}
+
+#[axum::debug_handler]
+async fn get_storage_at(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((alkane_id, key)): Path<(PathAlkaneId, String)>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))? as u32;
+    get_storage_at_logic(alkanes_indexer, index, alkane_id, key, height).await
+}
+
+#[axum::debug_handler]
+async fn get_storage_at_at_height(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((alkane_id, key, height)): Path<(PathAlkaneId, String, u32)>,
+) -> ServerResult {
+    get_storage_at_logic(alkanes_indexer, index, alkane_id, key, height).await
+}
+
+#[derive(Deserialize)]
+
+struct SimulateRequest {
+    alkanes: Vec<AlkaneTransfer>,
+
+    transaction: String,
+
+    target: AlkaneId,
+
+    inputs: Vec<u128>,
+
+    height: u64,
+
+    block: String,
+
+    txindex: u32,
+
+    vout: u32,
+
+    pointer: u32,
+
+    refund_pointer: u32,
+}
+
+#[derive(Deserialize)]
+
+struct AlkaneTransfer {
+    id: AlkaneId,
+
+    value: u128,
+}
+
+#[derive(Deserialize)]
+
+struct AlkaneId {
+    block: u128,
+
+    tx: u128,
+}
+
+#[axum::debug_handler]
+async fn simulate(
+    Extension(alkanes_indexer): Extension<Arc<AlkanesIndexer>>,
+
+    Extension(index): Extension<Arc<Index>>,
+
+    Json(request): Json<SimulateRequest>,
+) -> ServerResult {
+    let height = index
+        .get_block_count()
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    let alkanes = request
+        .alkanes
+        .into_iter()
+        .map(|a| alkanes_proto::alkanes::AlkaneTransfer {
+            id: Some(alkanes_proto::alkanes::AlkaneId {
+                block: Some(alkanes_proto::alkanes::Uint128 {
+                    lo: a.id.block as u64,
+
+                    hi: (a.id.block >> 64) as u64,
+                }),
+
+                tx: Some(alkanes_proto::alkanes::Uint128 {
+                    lo: a.id.tx as u64,
+
+                    hi: (a.id.tx >> 64) as u64,
+                }),
+            }),
+
+            value: Some(alkanes_proto::alkanes::Uint128 {
+                lo: a.value as u64,
+
+                hi: (a.value >> 64) as u64,
+            }),
+        })
+        .collect();
+
+    let _target = alkanes_proto::alkanes::AlkaneId {
+        block: Some(alkanes_proto::alkanes::Uint128 {
+            lo: request.target.block as u64,
+
+            hi: (request.target.block >> 64) as u64,
+        }),
+
+        tx: Some(alkanes_proto::alkanes::Uint128 {
+            lo: request.target.tx as u64,
+
+            hi: (request.target.tx >> 64) as u64,
+        }),
+    };
+
+    let _inputs: Vec<alkanes_proto::alkanes::Uint128> = request
+        .inputs
+        .iter()
+        .map(|i| alkanes_proto::alkanes::Uint128 {
+            lo: *i as u64,
+            hi: (*i >> 64) as u64,
+        })
+        .collect();
+
+    let mut calldata = Vec::new();
+
+    leb128::write::unsigned(&mut calldata, request.target.block as u64)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    leb128::write::unsigned(&mut calldata, request.target.tx as u64)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    for input in request.inputs.iter() {
+        leb128::write::unsigned(&mut calldata, *input as u64)
+            .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    }
+
+    let parcel = alkanes_proto::alkanes::MessageContextParcel {
+        alkanes,
+
+        transaction: hex::decode(request.transaction)
+            .map_err(|e| ServerError::BadRequest(e.to_string()))?,
+
+        height: request.height,
+
+        txindex: request.txindex,
+
+        calldata,
+
+        block: hex::decode(request.block).map_err(|e| ServerError::BadRequest(e.to_string()))?,
+
+        vout: request.vout,
+
+        pointer: request.pointer,
+
+        refund_pointer: request.refund_pointer,
+    };
+
+    let mut payload = Vec::new();
+
+    parcel
+        .encode(&mut payload)
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    let result = alkanes_indexer
+        .view("simulate".to_string(), &payload, height as u32)
+        .await
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    let response = alkanes_proto::alkanes::SimulateResponse::decode(result.as_slice())
+        .map_err(|e| ServerError::BadRequest(e.to_string()))?;
+
+    Ok(Json(response).into_response())
+}
