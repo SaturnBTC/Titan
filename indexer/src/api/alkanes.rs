@@ -69,34 +69,34 @@ use titan_types::SerializedOutPoint;
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/alkanes/health", get(health_check))
-        .route("/alkanes/getbytecode/:alkane_id", get(get_bytecode))
+        .route("/alkanes/getbytecode/{alkane_id}", get(get_bytecode))
         .route(
-            "/alkanes/getbytecode/:alkane_id/atheight/:height",
+            "/alkanes/getbytecode/{alkane_id}/atheight/{height}",
             get(get_bytecode_at_height),
         )
-        .route("/alkanes/byaddress/:address", get(by_address))
+        .route("/alkanes/byaddress/{address}", get(by_address))
         .route(
-            "/alkanes/byaddress/:address/atheight/:height",
+            "/alkanes/byaddress/{address}/atheight/{height}",
             get(by_address_at_height),
         )
-        .route("/alkanes/byoutpoint/:outpoint", get(by_outpoint))
+        .route("/alkanes/byoutpoint/{outpoint}", get(by_outpoint))
         .route(
-            "/alkanes/byoutpoint/:outpoint/atheight/:height",
+            "/alkanes/byoutpoint/{outpoint}/atheight/{height}",
             get(by_outpoint_at_height),
         )
-        .route("/alkanes/trace/:outpoint", get(trace_outpoint))
+        .route("/alkanes/trace/{outpoint}", get(trace_outpoint))
         .route(
-            "/alkanes/trace/:outpoint/atheight/:height",
+            "/alkanes/trace/{outpoint}/atheight/{height}",
             get(trace_outpoint_at_height),
         )
-        .route("/alkanes/getinventory/:alkane_id", get(get_inventory))
+        .route("/alkanes/getinventory/{alkane_id}", get(get_inventory))
         .route(
-            "/alkanes/getinventory/:alkane_id/atheight/:height",
+            "/alkanes/getinventory/{alkane_id}/atheight/{height}",
             get(get_inventory_at_height),
         )
-        .route("/alkanes/getstorageat/:alkane_id/:key", get(get_storage_at))
+        .route("/alkanes/getstorageat/{alkane_id}/{key}", get(get_storage_at))
         .route(
-            "/alkanes/getstorageat/:alkane_id/:key/atheight/:height",
+            "/alkanes/getstorageat/{alkane_id}/{key}/atheight/{height}",
             get(get_storage_at_at_height),
         )
         .route("/alkanes/simulate", post(simulate))
