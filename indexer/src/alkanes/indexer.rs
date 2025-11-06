@@ -44,7 +44,9 @@ impl AlkanesIndexer {
     pub async fn new(db: Arc<RocksDB>, chain: Chain) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new(db, batch.clone());
-        let engine = wasmtime::Engine::default();
+        let mut config = wasmtime::Config::new();
+        config.async_support(true);
+        let engine = wasmtime::Engine::new(&config)?;
         let wasm = Self::get_wasm_for_chain(chain);
         let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
         Ok(Self {
@@ -57,7 +59,9 @@ impl AlkanesIndexer {
     pub async fn new_dummy(chain: Chain) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new_dummy();
-        let engine = wasmtime::Engine::default();
+        let mut config = wasmtime::Config::new();
+        config.async_support(true);
+        let engine = wasmtime::Engine::new(&config)?;
         let wasm = Self::get_wasm_for_chain(chain);
         let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
         Ok(Self {
