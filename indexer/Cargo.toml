@@ -39,3 +39,5 @@ chrono = "0.4.39"
 clru = { workspace = true }
 crossbeam-channel = { workspace = true }
 rustc-hash = { workspace = true }
+tokio-util = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
