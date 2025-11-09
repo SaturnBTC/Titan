@@ -270,9 +270,7 @@ impl<'a> Rollback<'a> {
             if !self.cache.mempool {
                 for input in tx.inputs.iter() {
                     if let Some(script_pubkey) = input.script_pubkey.clone() {
-                        let entry = script_pubkey_entries
-                            .entry(script_pubkey)
-                            .or_default();
+                        let entry = script_pubkey_entries.entry(script_pubkey).or_default();
 
                         if !spent_outpoints.contains(&input.previous_outpoint) {
                             entry.0.push(input.previous_outpoint);

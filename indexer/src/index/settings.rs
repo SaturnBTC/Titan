@@ -19,7 +19,7 @@ pub struct Settings {
     pub(crate) index_addresses: bool,
     pub(crate) commit_interval: u64,
     pub(crate) main_loop_interval: u64,
-}   
+}
 
 impl RpcClientProvider for Settings {
     fn get_new_rpc_client(&self) -> Result<Client, RpcClientError> {
