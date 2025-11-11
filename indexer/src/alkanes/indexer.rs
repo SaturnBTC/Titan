@@ -41,14 +41,26 @@ impl AlkanesIndexer {
         }
     }
 
-    pub async fn new(db: Arc<RocksDB>, chain: Chain) -> Result<Self, Error> {
+    pub async fn new(db: Arc<RocksDB>, chain: Chain, enable_logging: bool) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new(db, batch.clone());
         let mut config = wasmtime::Config::new();
         config.async_support(true);
         let engine = wasmtime::Engine::new(&config)?;
         let wasm = Self::get_wasm_for_chain(chain);
-        let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
+        
+        // Create logging interceptor if enabled
+        let logging_interceptor = if enable_logging {
+            Some(Box::new(move |msg: String| {
+                // Use ANSI escape codes for cyan color on [WASM] prefix
+                println!("\x1b[36m[WASM]\x1b[0m {}", msg);
+            }) as Box<dyn FnMut(String) + Send>)
+        } else {
+            // No-op: don't log anything
+            None
+        };
+        
+        let runtime = MetashrewRuntime::new(wasm, store, engine, logging_interceptor).await?;
         Ok(Self {
             runtime,
             batch,
@@ -56,14 +68,24 @@ impl AlkanesIndexer {
         })
     }
 
-    pub async fn new_dummy(chain: Chain) -> Result<Self, Error> {
+    pub async fn new_dummy(chain: Chain, enable_logging: bool) -> Result<Self, Error> {
         let batch = Arc::new(Mutex::new(AlkanesBatch::default()));
         let store = AlkanesRocksDBStore::new_dummy();
         let mut config = wasmtime::Config::new();
         config.async_support(true);
         let engine = wasmtime::Engine::new(&config)?;
         let wasm = Self::get_wasm_for_chain(chain);
-        let runtime = MetashrewRuntime::new(wasm, store, engine).await?;
+        
+        // Create logging interceptor if enabled
+        let logging_interceptor = if enable_logging {
+            Some(Box::new(move |msg: String| {
+                println!("\x1b[36m[WASM]\x1b[0m {}", msg);
+            }) as Box<dyn FnMut(String) + Send>)
+        } else {
+            None
+        };
+        
+        let runtime = MetashrewRuntime::new(wasm, store, engine, logging_interceptor).await?;
         Ok(Self {
             runtime,
             batch,

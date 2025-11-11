@@ -282,6 +282,12 @@ impl BlockCache {
                 continue;
             }
 
+            // Skip purging blocks that were never indexed (before first_block_height)
+            // This happens when using --start-height
+            if height < self.first_block_height {
+                continue;
+            }
+
             let block = self
                 .blocks
                 .remove(&height)

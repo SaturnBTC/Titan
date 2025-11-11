@@ -177,6 +177,10 @@ pub struct Options {
     #[arg(long, default_value = "false")]
     pub(super) enable_alkanes: bool,
 
+    /// Enable alkanes WASM logging output
+    #[arg(long, default_value = "false", help = "Enable logging from alkanes WASM execution (shows [WASM] prefixed logs)")]
+    pub(super) enable_alkanes_logging: bool,
+
     /// Exit at specified block height (before indexing that block)
     #[arg(long, help = "Exit when reaching this block height (before indexing it)")]
     pub(super) exit_at: Option<u64>,
@@ -223,6 +227,7 @@ impl From<Options> for Settings {
             main_loop_interval: options.main_loop_interval,
             exit_at: options.exit_at,
             start_height: options.start_height,
+            enable_alkanes_logging: options.enable_alkanes_logging,
         }
     }
 }

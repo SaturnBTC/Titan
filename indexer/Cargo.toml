@@ -39,12 +39,12 @@ chrono = "0.4.39"
 clru = { workspace = true }
 crossbeam-channel = { workspace = true }
 rustc-hash = { workspace = true }
-metashrew-runtime = { git = "https://github.com/sandshrewmetaprotocols/metashrew", tag = "v9.0.1-rc.1" }
+metashrew-runtime = { git = "https://github.com/kungfuflex/alkanes-rs", branch = "kungfuflex/develop", package = "metashrew-runtime" }
 wasmtime = "18.0.4"
 anyhow = "1.0"
 prost = "0.12.6"
-alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs", package = "alkanes-support" }
-protorune-support = { git = "https://github.com/kungfuflex/alkanes-rs", package = "protorune-support" }
+alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs", branch = "kungfuflex/develop", package = "alkanes-support" }
+protorune-support = { git = "https://github.com/kungfuflex/alkanes-rs", branch = "kungfuflex/develop", package = "protorune-support" }
 leb128 = "0.2.5"
 
 

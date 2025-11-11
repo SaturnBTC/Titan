@@ -40,8 +40,8 @@ dependencies = [
 
 [[package]]
 name = "alkanes-support"
-version = "1.2.3"
-source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+version = "10.0.0"
+source = "git+https://github.com/kungfuflex/alkanes-rs?branch=kungfuflex%2Fdevelop#97f1119a5a3b84621f59b3d032ff183d79ce78b2"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -2018,8 +2018,8 @@ dependencies = [
 
 [[package]]
 name = "metashrew-runtime"
-version = "9.0.1"
-source = "git+https://github.com/sandshrewmetaprotocols/metashrew?tag=v9.0.1-rc.1#f9aabc2a5d2e855d328c62631c53129c2f65a006"
+version = "10.0.0"
+source = "git+https://github.com/kungfuflex/alkanes-rs?branch=kungfuflex%2Fdevelop#97f1119a5a3b84621f59b3d032ff183d79ce78b2"
 dependencies = [
  "anyhow",
  "hex",
@@ -2034,8 +2034,8 @@ dependencies = [
 
 [[package]]
 name = "metashrew-support"
-version = "9.0.1"
-source = "git+https://github.com/sandshrewmetaprotocols/metashrew#9bc8a5154166f1a2b207c1af2b8840d8d69d0f34"
+version = "10.0.0"
+source = "git+https://github.com/kungfuflex/alkanes-rs?branch=kungfuflex%2Fdevelop#97f1119a5a3b84621f59b3d032ff183d79ce78b2"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2287,8 +2287,8 @@ dependencies = [
 
 [[package]]
 name = "ordinals"
-version = "1.2.3"
-source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+version = "10.0.0"
+source = "git+https://github.com/kungfuflex/alkanes-rs?branch=kungfuflex%2Fdevelop#97f1119a5a3b84621f59b3d032ff183d79ce78b2"
 dependencies = [
  "bitcoin",
  "derive_more",
@@ -2575,15 +2575,15 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
 name = "protorune-support"
-version = "1.2.3"
-source = "git+https://github.com/kungfuflex/alkanes-rs#b5dec2384832855cd8f01090ba2b522b0f3bc7f7"
+version = "10.0.0"
+source = "git+https://github.com/kungfuflex/alkanes-rs?branch=kungfuflex%2Fdevelop#97f1119a5a3b84621f59b3d032ff183d79ce78b2"
 dependencies = [
  "anyhow",
  "bech32",
  "bitcoin",
  "hex",
  "metashrew-support",
- "ordinals 1.2.3",
+ "ordinals 10.0.0",
  "prost 0.12.6",
  "prost-build 0.12.6",
  "prost-types 0.12.6",
