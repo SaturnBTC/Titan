@@ -890,6 +890,13 @@ impl Updater {
             return Ok(());
         };
 
+        // If start_height is set, treat it as genesis and skip reorg detection below it
+        if let Some(start_height) = self.settings.start_height {
+            if prev_height < start_height {
+                return Ok(());
+            }
+        }
+
         // Regtest has no genesis block, so we don't need to check for reorgs.
         if prev_height == 0 && self.settings.chain == Chain::Regtest {
             return Ok(());

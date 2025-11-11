@@ -30,12 +30,14 @@ type Result<T> = std::result::Result<T, TransactionUpdaterError>;
 #[derive(Debug)]
 pub struct TransactionUpdaterSettings {
     pub(super) index_bitcoin_transactions: bool,
+    pub(super) allow_missing_inputs: bool,
 }
 
 impl From<Settings> for TransactionUpdaterSettings {
     fn from(settings: Settings) -> Self {
         Self {
             index_bitcoin_transactions: settings.index_bitcoin_transactions,
+            allow_missing_inputs: settings.start_height.is_some(),
         }
     }
 }
@@ -161,6 +163,12 @@ impl TransactionUpdater {
         match store.set_spent_tx_out(outpoint, spent) {
             Ok(()) => Ok(()),
             Err(StoreError::NotFound(_)) => {
+                if self.settings.allow_missing_inputs {
+                    // When using --start-height, inputs may reference outputs created before
+                    // the start height. Skip tracking these spent outputs since they don't exist
+                    // in our database.
+                    return Ok(());
+                }
                 return Err(TransactionUpdaterError::Store(StoreError::NotFound(
                     format!("outpoint not found: {:?}", previous_outpoint),
                 )));

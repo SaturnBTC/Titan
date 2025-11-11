@@ -85,11 +85,17 @@ impl AlkanesIndexer {
     }
 
     pub fn take_batch(&mut self) -> Result<AlkanesBatch, Error> {
-        let mut batch = self
+        let batch = self
             .batch
             .lock()
             .map_err(|e| anyhow!("Failed to obtain lock: {}", e))?;
-        Ok(std::mem::take(&mut *batch))
+        // Clone instead of take so the batch accumulates across blocks.
+        // This allows subsequent blocks to read state written by earlier blocks
+        // even before it's flushed to RocksDB.
+        Ok(AlkanesBatch {
+            puts: batch.puts.clone(),
+            deletes: batch.deletes.clone(),
+        })
     }
 
     pub async fn view(
@@ -123,7 +129,7 @@ impl AlkanesIndexer {
             target_height_u32
         );
 
-        // Clear any pending batches since we've rolled back
+        // Clear the accumulated batch since the reorg invalidates cached state
         // The actual state rollback will be handled by the metashrew runtime
         // when blocks are re-indexed from the target height forward
         {
@@ -133,7 +139,7 @@ impl AlkanesIndexer {
             batch.deletes.clear();
         }
 
-        tracing::info!("Alkanes rollback to height {} complete - pending batches cleared", target_height_u32);
+        tracing::info!("Alkanes rollback to height {} complete - cached batch cleared", target_height_u32);
         
         Ok(())
     }
