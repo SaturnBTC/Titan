@@ -180,6 +180,10 @@ pub struct Options {
     /// Exit at specified block height (before indexing that block)
     #[arg(long, help = "Exit when reaching this block height (before indexing it)")]
     pub(super) exit_at: Option<u64>,
+
+    /// Start indexing at specified block height (only if current height is lower)
+    #[arg(long, help = "Start indexing at this block height (only takes effect if current indexed height is lower)")]
+    pub(super) start_height: Option<u64>,
 }
 
 impl Options {
@@ -217,6 +221,8 @@ impl From<Options> for Settings {
             index_addresses: options.index_addresses,
             commit_interval: options.commit_interval,
             main_loop_interval: options.main_loop_interval,
+            exit_at: options.exit_at,
+            start_height: options.start_height,
         }
     }
 }

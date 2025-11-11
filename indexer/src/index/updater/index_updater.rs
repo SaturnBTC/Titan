@@ -260,6 +260,23 @@ impl Updater {
 
         // Not at tip – proceed with full indexing workflow.
         let mut cache = BlockCache::new(self.db.clone(), BlockCacheSettings::new(&self.settings))?;
+        
+        // Handle --start-height if set and current height is lower
+        if let Some(start_height) = self.settings.start_height {
+            let current_block_count = cache.get_block_count();
+            if current_block_count < start_height {
+                info!("Current height {} is lower than start_height {}, skipping to that height...", current_block_count, start_height);
+                
+                // Directly update the database block count to skip ahead
+                let db = self.db.write();
+                db.set_block_count(start_height)?;
+                
+                // Reload the cache to reflect the updated block count
+                cache = BlockCache::new(self.db.clone(), BlockCacheSettings::new(&self.settings))?;
+                
+                info!("Skipped to height {}", start_height);
+            }
+        }
         let mut events = Events::new();
 
         let mut indexing_first_block = true;
@@ -643,6 +660,14 @@ impl Updater {
         cache: &mut BlockCache,
         events: &mut Events,
     ) -> Result<Block> {
+        // Check if we should exit at this height
+        if let Some(exit_at) = self.settings.exit_at {
+            if height >= exit_at {
+                info!("Reached exit height {}, exiting before indexing this block", height);
+                std::process::exit(0);
+            }
+        }
+
         let _timer = self
             .latency
             .with_label_values(&["index_block"])
