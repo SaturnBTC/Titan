@@ -19,6 +19,7 @@ pub struct Settings {
     pub(crate) index_addresses: bool,
     pub(crate) commit_interval: u64,
     pub(crate) main_loop_interval: u64,
+    pub(crate) exit_at: Option<u64>,
 }
 
 impl RpcClientProvider for Settings {

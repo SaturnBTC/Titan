@@ -176,6 +176,10 @@ pub struct Options {
     /// Enable alkanes
     #[arg(long, default_value = "false")]
     pub(super) enable_alkanes: bool,
+
+    /// Exit at specified block height (before indexing that block)
+    #[arg(long, help = "Exit when reaching this block height (before indexing it)")]
+    pub(super) exit_at: Option<u64>,
 }
 
 impl Options {
