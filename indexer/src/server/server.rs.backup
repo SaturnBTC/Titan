@@ -13,7 +13,7 @@ use {
     },
     axum::{
         body::Bytes,
-        extract::{DefaultBodyLimit, Extension, FromRef, Json, Path, Query},
+        extract::{DefaultBodyLimit, Extension, FromRef, Json, Path, Query, State},
         response::IntoResponse,
         routing::{get, post},
         Router,
@@ -37,6 +37,16 @@ use {
     tracing::{error, info},
     uuid::Uuid,
 };
+
+// Application state shared across all handlers
+#[derive(Clone)]
+pub struct AppState {
+    pub index: Arc<Index>,
+    pub alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
+    pub webhook_subscription_manager: Arc<WebhookSubscriptionManager>,
+    pub bitcoin_rpc_pool: RpcClientPool,
+    pub config: Arc<ServerConfig>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SpawnError {
@@ -62,7 +72,16 @@ impl Server {
         config: Arc<ServerConfig>,
         handle: Handle,
     ) -> SpawnResult<task::JoinHandle<io::Result<()>>> {
-        let router = Router::new()
+        // Create shared application state
+        let app_state = AppState {
+            index,
+            alkanes_indexer,
+            webhook_subscription_manager,
+            bitcoin_rpc_pool,
+            config,
+        };
+
+        let mut router = Router::new()
             // Health check
             .route("/", get(Self::health_check))
             // Status
@@ -104,13 +123,14 @@ impl Server {
                 get(Self::get_subscription).delete(Self::delete_subscription),
             )
             .route("/subscription", post(Self::add_subscription))
-            .route("/subscriptions", get(Self::subscriptions))
-            .merge(crate::api::alkanes::router())
-            .layer(Extension(index))
-            .layer(Extension(alkanes_indexer))
-            .layer(Extension(webhook_subscription_manager))
-            .layer(Extension(config.clone()))
-            .layer(Extension(bitcoin_rpc_pool))
+            .route("/subscriptions", get(Self::subscriptions));
+
+        // Merge alkanes routes if enabled
+        if app_state.alkanes_indexer.is_some() {
+            router = router.merge(crate::api::alkanes::router());
+        }
+
+        let router = router
             .layer(
                 CorsLayer::new()
                     .allow_methods([http::Method::GET])
@@ -118,9 +138,9 @@ impl Server {
             )
             .layer(DefaultBodyLimit::disable())
             .layer(CompressionLayer::new())
-            .with_state(config.clone());
+            .with_state(app_state.clone());
 
-        let jh = self.spawn(&config, router, handle)?;
+        let jh = self.spawn(&app_state.config, router, handle)?;
 
         Ok(jh)
     }
@@ -156,12 +176,12 @@ impl Server {
             .into_response())
     }
 
-    async fn tip(Extension(index): Extension<Arc<Index>>) -> ServerResult {
-        task::block_in_place(|| Ok(Json(api::tip(index)?).into_response()))
+    async fn tip(State(state): State<AppState>) -> ServerResult {
+        task::block_in_place(|| Ok(Json(api::tip(state.index)?).into_response()))
     }
 
-    async fn status(Extension(index): Extension<Arc<Index>>) -> ServerResult {
-        task::block_in_place(|| Ok(Json(api::status(index)?).into_response()))
+    async fn status(State(state): State<AppState>) -> ServerResult {
+        task::block_in_place(|| Ok(Json(api::status(state.index)?).into_response()))
     }
 
     async fn block(
@@ -435,23 +455,17 @@ impl Server {
 
 impl<S> axum::extract::FromRequestParts<S> for AcceptEncoding
 where
+    Arc<ServerConfig>: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = (StatusCode, &'static str);
 
-    fn from_request_parts<'life0, 'life1, 'async_trait>(
-        parts: &'life0 mut http::request::Parts,
-        _state: &'life1 S,
-    ) -> ::core::pin::Pin<Box<dyn ::core::future::Future<Output = Result<Self, Self::Rejection>> + ::core::marker::Send + 'async_trait>>
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            Ok(Self(parts.headers.get("accept-encoding").map(|value| {
-                value.to_str().unwrap_or_default().to_owned()
-            })))
-        })
+    async fn from_request_parts(
+        parts: &mut http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(parts.headers.get("accept-encoding").map(|value| {
+            value.to_str().unwrap_or_default().to_owned()
+        })))
     }
 }

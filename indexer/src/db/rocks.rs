@@ -1577,6 +1577,15 @@ impl RocksDB {
             }
         }
 
+        // 18. Update misc (alkanes data)
+        if !mempool {
+            let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(ALKANES_CF)?;
+
+            for (key, value) in update.misc.iter() {
+                batch.put_cf(&cf_handle, key, value);
+            }
+        }
+
         // Proceed with the actual write
         self.db.write_opt(batch, &self.write_opts)?;
 
@@ -1649,6 +1658,14 @@ impl RocksDB {
                 self.cf_handle(SPENT_OUTPOINTS_MEMPOOL_CF)?;
             for outpoint in delete.spent_outpoints_in_mempool.iter() {
                 batch.delete_cf(&cf_handle, outpoint);
+            }
+        }
+
+        // 6. Delete misc (alkanes data)
+        {
+            let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(ALKANES_CF)?;
+            for key in delete.misc.iter() {
+                batch.delete_cf(&cf_handle, key);
             }
         }
 
