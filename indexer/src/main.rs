@@ -198,9 +198,16 @@ async fn spawn_background_threads(
     // finished – either normally or because it encountered a fatal error.
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
-    // 1) Spawn the indexer loop in a blocking thread
+    // 1) Spawn the indexer loop in a blocking thread with a Tokio runtime
+    //    This is necessary because the alkanes indexer needs async support
     let index_clone = index.clone();
     let index_handle = std::thread::spawn(move || {
+        // Create a new Tokio runtime for this thread
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+        
+        // Enter the runtime context so Handle::current() works
+        let _guard = rt.enter();
+        
         index_clone.index();
         // Ignore send errors – it just means the receiver was dropped.
         let _ = shutdown_tx.send(());
