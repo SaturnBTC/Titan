@@ -1,3 +1,4 @@
+use tokio::sync::RwLock;
 use {
     super::{
         deserialize_from_str::DeserializeFromStr,
@@ -24,7 +25,7 @@ use {
     std::{
         io,
         net::ToSocketAddrs,
-        sync::{Arc, Mutex},
+        sync::Arc,
     },
     titan_types::{
         query, InscriptionId, Pagination, SerializedOutPoint, SerializedTxid, Subscription,
@@ -50,6 +51,15 @@ pub enum SpawnError {
 
 type SpawnResult<T> = std::result::Result<T, SpawnError>;
 
+use tokio::sync::Mutex;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub config: Arc<ServerConfig>,
+    pub alkanes_indexer: Option<Arc<Mutex<AlkanesIndexer>>>,
+    pub index: Arc<Index>,
+}
+
 pub struct Server;
 
 impl Server {
@@ -62,6 +72,12 @@ impl Server {
         config: Arc<ServerConfig>,
         handle: Handle,
     ) -> SpawnResult<task::JoinHandle<io::Result<()>>> {
+        let app_state = AppState {
+            config: config.clone(),
+            alkanes_indexer,
+            index: index.clone(),
+        };
+        
         let router = Router::new()
             // Health check
             .route("/", get(Self::health_check))
@@ -105,11 +121,9 @@ impl Server {
             )
             .route("/subscription", post(Self::add_subscription))
             .route("/subscriptions", get(Self::subscriptions))
-            .merge(crate::api::alkanes::router())
+            .merge(crate::api::alkanes::router(app_state))
             .layer(Extension(index))
-            .layer(Extension(alkanes_indexer))
             .layer(Extension(webhook_subscription_manager))
-            .layer(Extension(config.clone()))
             .layer(Extension(bitcoin_rpc_pool))
             .layer(
                 CorsLayer::new()
@@ -117,8 +131,7 @@ impl Server {
                     .allow_origin(Any),
             )
             .layer(DefaultBodyLimit::disable())
-            .layer(CompressionLayer::new())
-            .with_state(config.clone());
+            .layer(CompressionLayer::new());
 
         let jh = self.spawn(&config, router, handle)?;
 

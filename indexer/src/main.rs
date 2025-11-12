@@ -9,8 +9,9 @@ use options::Options;
 use server::{Server, ServerConfig};
 use std::{
     io, panic,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
+use tokio::sync::Mutex;
 use subscription::{
     shutdown_and_wait_subscription_tasks, spawn_subscription_tasks, SubscriptionSpawnResult,
     WebhookSubscriptionManager,

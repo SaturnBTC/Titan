@@ -54,7 +54,7 @@ use crate::{
     server::{error::{ServerError, ServerResult}, AppState},
 };
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use alkanes_support::proto as alkanes_proto;
 use axum::{
     extract::{Extension, Path, State},
@@ -69,7 +69,7 @@ use titan_types::SerializedOutPoint;
 
 pub struct AlkanesHandlers;
 
-pub fn router(app_state: AppState) -> Router<()> {
+pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/alkanes/health", get(AlkanesHandlers::health_check))
         .route("/alkanes/debug", get(AlkanesHandlers::debug_extension))
@@ -104,8 +104,6 @@ pub fn router(app_state: AppState) -> Router<()> {
             get(AlkanesHandlers::get_storage_at_at_height),
         )
         .route("/alkanes/simulate", post(AlkanesHandlers::simulate))
-        .layer(Extension(app_state.index))
-        .layer(Extension(app_state.alkanes_indexer))
 }
 
 impl AlkanesHandlers {
@@ -114,12 +112,12 @@ impl AlkanesHandlers {
     }
 
     async fn debug_extension(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        State(app_state): State<AppState>,
     ) -> impl IntoResponse {
-        if alkanes_indexer.is_some() {
-            (axum::http::StatusCode::OK, Json("Extension found!"))
+        if app_state.alkanes_indexer.is_some() {
+            (axum::http::StatusCode::OK, Json("State found!"))
         } else {
-            (axum::http::StatusCode::NOT_FOUND, Json("Extension not found!"))
+            (axum::http::StatusCode::NOT_FOUND, Json("State not found!"))
         }
     }
 
@@ -154,29 +152,29 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn get_bytecode(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        State(app_state): State<AppState>,
         Extension(index): Extension<Arc<Index>>,
         Path(alkane_id): Path<PathAlkaneId>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
+        let alkanes_indexer = app_state.alkanes_indexer
             .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
         let block_count = index
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_bytecode_logic(&*indexer, index, alkane_id, height).await
     }
 
     #[axum::debug_handler]
     async fn get_bytecode_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        State(app_state): State<AppState>,
         Extension(index): Extension<Arc<Index>>,
         Path((alkane_id, height)): Path<(PathAlkaneId, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
+        let alkanes_indexer = app_state.alkanes_indexer
             .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_bytecode_logic(&*indexer, index, alkane_id, height).await
     }
 
@@ -209,29 +207,29 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn by_address(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        State(app_state): State<AppState>,
         Extension(index): Extension<Arc<Index>>,
         Path(address): Path<Address<bitcoin::address::NetworkUnchecked>>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
+        let alkanes_indexer = app_state.alkanes_indexer
             .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
         let block_count = index
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::by_address_logic(&*indexer, index, address, height).await
     }
 
     #[axum::debug_handler]
     async fn by_address_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        State(app_state): State<AppState>,
         Extension(index): Extension<Arc<Index>>,
         Path((address, height)): Path<(Address<bitcoin::address::NetworkUnchecked>, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
+        let alkanes_indexer = app_state.alkanes_indexer
             .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::by_address_logic(&*indexer, index, address, height).await
     }
 
@@ -261,7 +259,7 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn by_outpoint(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path(outpoint): Path<SerializedOutPoint>,
     ) -> ServerResult {
@@ -269,21 +267,17 @@ impl AlkanesHandlers {
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::by_outpoint_logic(&*indexer, index, outpoint, height).await
     }
 
     #[axum::debug_handler]
     async fn by_outpoint_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path((outpoint, height)): Path<(SerializedOutPoint, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::by_outpoint_logic(&*indexer, index, outpoint, height).await
     }
 
@@ -312,7 +306,7 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn trace_outpoint(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path(outpoint): Path<SerializedOutPoint>,
     ) -> ServerResult {
@@ -320,21 +314,17 @@ impl AlkanesHandlers {
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::trace_outpoint_logic(&*indexer, index, outpoint, height).await
     }
 
     #[axum::debug_handler]
     async fn trace_outpoint_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path((outpoint, height)): Path<(SerializedOutPoint, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::trace_outpoint_logic(&*indexer, index, outpoint, height).await
     }
 
@@ -371,7 +361,7 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn get_inventory(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path(alkane_id): Path<PathAlkaneId>,
     ) -> ServerResult {
@@ -379,21 +369,17 @@ impl AlkanesHandlers {
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_inventory_logic(&*indexer, index, alkane_id, height).await
     }
 
     #[axum::debug_handler]
     async fn get_inventory_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path((alkane_id, height)): Path<(PathAlkaneId, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_inventory_logic(&*indexer, index, alkane_id, height).await
     }
 
@@ -432,7 +418,7 @@ impl AlkanesHandlers {
 
     #[axum::debug_handler]
     async fn get_storage_at(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path((alkane_id, key)): Path<(PathAlkaneId, String)>,
     ) -> ServerResult {
@@ -440,26 +426,22 @@ impl AlkanesHandlers {
         .get_block_count()
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
         let height = block_count.saturating_sub(1) as u32;
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_storage_at_logic(&*indexer, index, alkane_id, key, height).await
     }
 
     #[axum::debug_handler]
     async fn get_storage_at_at_height(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
         Extension(index): Extension<Arc<Index>>,
         Path((alkane_id, key, height)): Path<(PathAlkaneId, String, u32)>,
     ) -> ServerResult {
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         Self::get_storage_at_logic(&*indexer, index, alkane_id, key, height).await
     }
     #[axum::debug_handler]
     async fn simulate(
-        Extension(alkanes_indexer): Extension<Option<Arc<Mutex<AlkanesIndexer>>>>,
+        Extension(alkanes_indexer): Extension<Arc<RwLock<AlkanesIndexer>>>,
     
         Extension(index): Extension<Arc<Index>>,
     
@@ -559,9 +541,7 @@ impl AlkanesHandlers {
         .encode(&mut payload)
         .map_err(|e| ServerError::BadRequest(e.to_string()))?;
     
-        let alkanes_indexer = alkanes_indexer
-            .ok_or_else(|| ServerError::BadRequest("Alkanes indexer not enabled".to_string()))?;
-        let indexer = alkanes_indexer.lock().await;
+        let indexer = alkanes_indexer.read().await;
         let result = indexer
         .view("simulate".to_string(), &payload, height as u32)
         .await

@@ -1,3 +1,5 @@
+use std::sync::RwLock;
+use tokio::sync::Mutex;
 use {
     super::{
         transaction_update::{TransactionChangeSet, TransactionUpdate},
@@ -35,7 +37,7 @@ use {
         fmt::{self, Display, Formatter},
         sync::{
             atomic::{AtomicBool, Ordering},
-            Arc, Mutex, RwLock,
+            Arc,
         },
         time::{SystemTime, UNIX_EPOCH},
     },
@@ -434,10 +436,11 @@ impl Updater {
         let client = self.bitcoin_rpc_pool.get()?;
 
         // Get current mempool transactions
-        let lock = self
-            .broadcast_lock
-            .lock()
-            .map_err(|_| UpdaterError::Mutex)?;
+        let lock = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                self.broadcast_lock.lock().await
+            })
+        });
         let current_mempool = {
             let current_mempool = client.get_raw_mempool_verbose()?;
             current_mempool
@@ -675,25 +678,26 @@ impl Updater {
 
         if let Some(alkanes_indexer) = &self.alkanes_indexer {
             // Check if alkanes should be indexed at this height
-            let should_index = alkanes_indexer
-                .lock()
-                .map_err(|_| UpdaterError::Mutex)?
-                .should_index_at_height(height);
+            let should_index = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    alkanes_indexer.lock().await.should_index_at_height(height)
+                })
+            });
             
             if should_index {
                 tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current().block_on(async {
                         alkanes_indexer
-                            .lock()
-                            .map_err(|_| UpdaterError::Mutex)?
+                            .lock().await
                             .index_block(&bitcoin_block, height)
                             .await
                     })
                 })?;
-                let batch = alkanes_indexer
-                    .lock()
-                    .map_err(|_| UpdaterError::Mutex)?
-                    .take_batch()?;
+                let batch = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(async {
+                        alkanes_indexer.lock().await.take_batch()
+                    })
+                })?;
                 cache.add_misc_batch(batch.puts, batch.deletes);
             }
         }
@@ -782,10 +786,11 @@ impl Updater {
             MempoolCache::new(self.db.clone(), MempoolCacheSettings::new(&self.settings))?;
         let mut events = Events::new();
 
-        let _lock = self
-            .broadcast_lock
-            .lock()
-            .map_err(|_| UpdaterError::Mutex)?;
+        let _lock = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                self.broadcast_lock.lock().await
+            })
+        });
         if self.index_tx(txid, tx, mempool_entry.clone(), &mut cache, &mut events)? {
             events.add_event(Event::TransactionSubmitted {
                 txid: *txid,
@@ -944,7 +949,7 @@ impl Updater {
                 tokio::runtime::Handle::current().block_on(async {
                     alkanes_indexer
                         .lock()
-                        .map_err(|_| UpdaterError::Mutex)?
+                        .await
                         .rollback_to_height(target_height)
                         .await
                         .map_err(|e| {

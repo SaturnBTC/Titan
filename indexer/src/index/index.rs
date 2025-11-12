@@ -1,3 +1,5 @@
+use tokio::sync::Mutex;
+
 use {
     super::{
         metrics::Metrics,
@@ -18,7 +20,7 @@ use {
     std::{
         sync::{
             atomic::{AtomicBool, Ordering},
-            Arc, Mutex,
+            Arc,
         },
         thread::{self},
         time::Duration,
