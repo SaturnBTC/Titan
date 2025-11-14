@@ -1,9 +1,8 @@
 use {
     crate::index::{Index, IndexError},
     bitcoin::BlockHash,
-    ordinals::RuneId,
     std::sync::Arc,
-    titan_types::query,
+    titan_types::{query, RuneId},
 };
 
 pub fn to_hash(block: &query::Block, index: &Arc<Index>) -> Result<BlockHash, IndexError> {

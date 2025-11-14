@@ -2,8 +2,9 @@ use {
     super::{
         entry::Entry,
         util::{
-            parse_outpoint_from_script_pubkey_key, rune_id_from_bytes, rune_index_key,
-            rune_transaction_key, script_pubkey_outpoint_to_bytes, script_pubkey_search_key,
+            parse_outpoint_from_script_pubkey_key, rune_index_key, rune_transaction_key,
+            rune_transaction_key_from_bytes, script_pubkey_outpoint_to_bytes,
+            script_pubkey_search_key,
         },
         *,
     },
@@ -14,7 +15,6 @@ use {
     bitcoin::{consensus, hashes::Hash, BlockHash, ScriptBuf, Transaction},
     borsh::BorshDeserialize,
     mapper::DBResultMapper,
-    ordinals::RuneId,
     rocksdb::{
         BlockBasedOptions, BoundColumnFamily, ColumnFamilyDescriptor, DBWithThreadMode, Direction,
         IteratorMode, MultiThreaded, Options, WriteBatch, WriteOptions,
@@ -25,12 +25,10 @@ use {
         sync::{Arc, RwLock},
     },
     titan_types::{
-        Block, InscriptionId, MempoolEntry, Pagination, PaginationResponse, SerializedOutPoint,
-        SerializedTxid, SpenderReference, Subscription, TxOut,
+        Block, InscriptionId, MempoolEntry, Pagination, PaginationResponse, RuneId,
+        SerializedOutPoint, SerializedTxid, SpenderReference, Subscription, TxOut,
     },
-    util::rune_id_to_bytes,
     uuid::Uuid,
-    wrapper::RuneIdWrapper,
 };
 
 pub struct RocksDB {
@@ -494,7 +492,7 @@ impl RocksDB {
     pub fn get_rune(&self, rune_id: &RuneId) -> DBResult<RuneEntry> {
         let cf_handle = self.cf_handle(RUNES_CF)?;
         Ok(self
-            .get_option_vec_data(&cf_handle, rune_id_to_bytes(rune_id))
+            .get_option_vec_data(&cf_handle, rune_id.to_bytes())
             .mapped()?
             .ok_or(RocksDBError::NotFound(format!(
                 "rune not found: {}",
@@ -506,7 +504,7 @@ impl RocksDB {
         let cf_handle = self.cf_handle(RUNES_CF)?;
         let keys: Vec<_> = rune_ids
             .iter()
-            .map(|id| (&cf_handle, rune_id_to_bytes(id)))
+            .map(|id| (&cf_handle, id.to_bytes()))
             .collect();
 
         let values = self.db.multi_get_cf(keys);
@@ -523,7 +521,7 @@ impl RocksDB {
 
     pub fn get_rune_id_by_number(&self, number: u64) -> DBResult<RuneId> {
         let cf_handle = self.cf_handle(RUNE_NUMBER_CF)?;
-        let rune_id_wrapper: RuneIdWrapper = self
+        let rune_id: RuneId = self
             .get_option_vec_data(&cf_handle, number.to_le_bytes())
             .mapped()?
             .ok_or(RocksDBError::NotFound(format!(
@@ -531,7 +529,7 @@ impl RocksDB {
                 number
             )))?;
 
-        Ok(rune_id_wrapper.0)
+        Ok(rune_id)
     }
 
     pub fn get_rune_ids_by_numbers(&self, numbers: &Vec<u64>) -> DBResult<HashMap<u64, RuneId>> {
@@ -546,7 +544,7 @@ impl RocksDB {
         let mut result = HashMap::default();
         for (i, value) in values.iter().enumerate() {
             if let Ok(Some(value)) = value {
-                result.insert(numbers[i], RuneIdWrapper::load(value.clone()).0);
+                result.insert(numbers[i], RuneId::load(value.clone()));
             }
         }
 
@@ -694,7 +692,7 @@ impl RocksDB {
 
     pub fn get_rune_id(&self, rune: &u128) -> DBResult<RuneId> {
         let cf_handle = self.cf_handle(RUNE_IDS_CF)?;
-        let rune_id_wrapper: RuneIdWrapper = self
+        let rune_id: RuneId = self
             .get_option_vec_data(&cf_handle, rune.to_le_bytes())
             .mapped()?
             .ok_or(RocksDBError::NotFound(format!(
@@ -702,7 +700,7 @@ impl RocksDB {
                 rune
             )))?;
 
-        Ok(rune_id_wrapper.0)
+        Ok(rune_id)
     }
 
     pub fn get_inscription(&self, id: &InscriptionId) -> DBResult<Inscription> {
@@ -766,7 +764,7 @@ impl RocksDB {
         let start_index = if start_index < 1 { 1 } else { start_index };
 
         let prefix_bytes = {
-            let rune_id_bytes = rune_id_to_bytes(rune_id);
+            let rune_id_bytes = rune_id.to_bytes();
             // "rune:<rune_id>:"
             let mut p = Vec::with_capacity(5 + rune_id_bytes.len() + 1);
             p.extend_from_slice(b"rune:");
@@ -895,7 +893,7 @@ impl RocksDB {
                     .entry(*txid)
                     .or_default()
                     .push(TxRuneIndexRef {
-                        rune_id: rune_id_to_bytes(rune_id),
+                        rune_id: rune_id.to_bytes().to_vec(),
                         index: current_index,
                     });
             }
@@ -974,10 +972,11 @@ impl RocksDB {
 
         for (txid, idx_refs) in idx_refs {
             for TxRuneIndexRef { rune_id, index } in &idx_refs {
-                let key = rune_transaction_key(
-                    &rune_id_from_bytes(rune_id).map_err(|_| RocksDBError::InvalidRuneId)?,
-                    *index,
-                );
+                // Validate length but use bytes directly without reconstructing RuneId
+                if rune_id.len() != 12 {
+                    return Err(RocksDBError::InvalidRuneId);
+                }
+                let key = rune_transaction_key_from_bytes(rune_id, *index);
                 batch.delete_cf(&primary_cf, key);
             }
 
@@ -1409,7 +1408,7 @@ impl RocksDB {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNES_CF)?;
 
             for (rune_id, rune) in update.runes.iter() {
-                batch.put_cf(&cf_handle, rune_id_to_bytes(&rune_id), rune.store_ref());
+                batch.put_cf(&cf_handle, rune_id.to_bytes(), rune.store_ref());
             }
         }
 
@@ -1418,8 +1417,7 @@ impl RocksDB {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNE_IDS_CF)?;
 
             for (rune, rune_id) in update.rune_ids.iter() {
-                let rune_id_wrapper = RuneIdWrapper(rune_id.clone());
-                batch.put_cf(&cf_handle, rune.to_le_bytes(), rune_id_wrapper.store_ref());
+                batch.put_cf(&cf_handle, rune.to_le_bytes(), rune_id.store_ref());
             }
         }
 
@@ -1428,12 +1426,7 @@ impl RocksDB {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNE_NUMBER_CF)?;
 
             for (number, rune_id) in update.rune_numbers.iter() {
-                let rune_id_wrapper = RuneIdWrapper(rune_id.clone());
-                batch.put_cf(
-                    &cf_handle,
-                    number.to_le_bytes(),
-                    rune_id_wrapper.store_ref(),
-                );
+                batch.put_cf(&cf_handle, number.to_le_bytes(), rune_id.store_ref());
             }
         }
 
@@ -1661,11 +1654,7 @@ impl RocksDB {
         {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNES_CF)?;
             for (rune_id, rune_entry) in rollback.rune_entry.iter() {
-                batch.put_cf(
-                    &cf_handle,
-                    rune_id_to_bytes(&rune_id),
-                    rune_entry.store_ref(),
-                );
+                batch.put_cf(&cf_handle, rune_id.to_bytes(), rune_entry.store_ref());
             }
         }
 
@@ -1747,7 +1736,7 @@ impl RocksDB {
         {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNES_CF)?;
             for rune_id in rollback.runes_to_delete.iter() {
-                batch.delete_cf(&cf_handle, rune_id_to_bytes(rune_id));
+                batch.delete_cf(&cf_handle, rune_id.to_bytes());
             }
         }
 
@@ -1779,7 +1768,7 @@ impl RocksDB {
         {
             let cf_handle: Arc<BoundColumnFamily<'_>> = self.cf_handle(RUNE_TRANSACTIONS_CF)?;
             for rune_id in rollback.delete_all_rune_transactions.iter() {
-                batch.delete_cf(&cf_handle, rune_id_to_bytes(rune_id));
+                batch.delete_cf(&cf_handle, rune_id.to_bytes());
             }
         }
 
@@ -1788,7 +1777,7 @@ impl RocksDB {
             let cf_handle: Arc<BoundColumnFamily<'_>> =
                 self.cf_handle(RUNE_TRANSACTIONS_MEMPOOL_CF)?;
             for rune_id in rollback.delete_all_rune_transactions.iter() {
-                batch.delete_cf(&cf_handle, rune_id_to_bytes(rune_id));
+                batch.delete_cf(&cf_handle, rune_id.to_bytes());
             }
         }
 
@@ -1904,16 +1893,12 @@ impl RocksDB {
             let rune_entry = rune_entries_to_update.get_mut(&rune_id).unwrap();
             let new_number = rune_numbers_to_update.get(&number).unwrap();
             rune_entry.number = *new_number;
-            batch.put_cf(
-                &runes_cf_handle,
-                rune_id_to_bytes(&rune_id),
-                rune_entry.store_ref(),
-            );
+            batch.put_cf(&runes_cf_handle, rune_id.to_bytes(), rune_entry.store_ref());
 
             batch.put_cf(
                 &rune_number_cf_handle,
                 new_number.to_le_bytes(),
-                rune_id_to_bytes(&rune_id),
+                rune_id.to_bytes(),
             );
         }
 

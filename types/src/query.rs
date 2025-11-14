@@ -1,6 +1,7 @@
 use {
+    crate::rune_id::RuneId,
     bitcoin::BlockHash,
-    ordinals::{RuneId, SpacedRune},
+    ordinals::SpacedRune,
     std::{
         fmt::{self, Display},
         str::FromStr,

@@ -2,13 +2,13 @@ use {
     super::Lot,
     bitcoin::ScriptBuf,
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::{Rune, RuneId},
+    ordinals::Rune,
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::{
         fmt::Display,
         io::{Read, Result, Write},
     },
-    titan_types::{RuneAmount, SerializedOutPoint, TxOut},
+    titan_types::{RuneAmount, RuneId, SerializedOutPoint, TxOut},
 };
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -133,7 +133,7 @@ impl BorshDeserialize for TransactionStateChange {
             let block = u64::deserialize_reader(reader)?;
             let tx = u32::deserialize_reader(reader)?;
             let rune_value = u128::deserialize_reader(reader)?;
-            Some((RuneId { block, tx }, Rune(rune_value)))
+            Some((RuneId::new(block, tx), Rune(rune_value)))
         } else {
             None
         };
@@ -153,7 +153,7 @@ impl BorshDeserialize for TransactionStateChange {
             let block = u64::deserialize_reader(reader)?;
             let tx = u32::deserialize_reader(reader)?;
             let lot_value = u128::deserialize_reader(reader)?;
-            burned.insert(RuneId { block, tx }, Lot(lot_value));
+            burned.insert(RuneId::new(block, tx), Lot(lot_value));
         }
 
         // 6) is_coinbase

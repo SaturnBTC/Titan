@@ -1,7 +1,7 @@
 use {
-    crate::{inscription_id::InscriptionId, SerializedTxid},
+    crate::{inscription_id::InscriptionId, rune_id::RuneId, SerializedTxid},
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::{RuneId, SpacedRune},
+    ordinals::SpacedRune,
     serde::{Deserialize, Serialize},
     std::io::{Read, Result, Write},
 };
@@ -61,6 +61,23 @@ impl From<(RuneId, u128)> for RuneAmount {
     }
 }
 
+impl PartialOrd for RuneAmount {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let same_id = self.rune_id == other.rune_id;
+        let amt_ord = self.amount.cmp(&other.amount);
+        match (same_id, amt_ord) {
+            (false, _) => None,
+            (true, ord) => Some(ord),
+        }
+    }
+}
+
+impl PartialEq<RuneId> for RuneAmount {
+    fn eq(&self, other: &RuneId) -> bool {
+        self.rune_id == *other
+    }
+}
+
 impl BorshSerialize for RuneAmount {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         // Write out RuneId (block, tx):
@@ -84,7 +101,7 @@ impl BorshDeserialize for RuneAmount {
         let amount = u128::deserialize_reader(reader)?;
 
         Ok(RuneAmount {
-            rune_id: RuneId { block, tx },
+            rune_id: RuneId::new(block, tx),
             amount,
         })
     }
@@ -93,8 +110,9 @@ impl BorshDeserialize for RuneAmount {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rune_id::RuneId;
     use borsh::{BorshDeserialize, BorshSerialize};
-    use ordinals::{Rune, RuneId, SpacedRune};
+    use ordinals::{Rune, SpacedRune};
 
     /// Helper function to test borsh serialization roundtrip
     fn test_borsh_roundtrip<T>(original: &T) -> T
@@ -120,10 +138,7 @@ mod tests {
 
     fn create_test_rune_amount() -> RuneAmount {
         RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         }
     }
@@ -141,10 +156,7 @@ mod tests {
 
     fn create_test_rune_response() -> RuneResponse {
         RuneResponse {
-            id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            id: RuneId::new(840000, 1),
             block: 840000,
             burned: 1000000u128,
             divisibility: 8,
@@ -183,7 +195,7 @@ mod tests {
     #[test]
     fn test_rune_amount_zero_values() {
         let rune_amount = RuneAmount {
-            rune_id: RuneId { block: 0, tx: 0 },
+            rune_id: RuneId::new(0, 0),
             amount: 0,
         };
         test_borsh_roundtrip(&rune_amount);
@@ -193,10 +205,7 @@ mod tests {
     #[test]
     fn test_rune_amount_max_values() {
         let rune_amount = RuneAmount {
-            rune_id: RuneId {
-                block: u64::MAX,
-                tx: u32::MAX,
-            },
+            rune_id: RuneId::new(u64::MAX, u32::MAX),
             amount: u128::MAX,
         };
         test_borsh_roundtrip(&rune_amount);
@@ -205,10 +214,7 @@ mod tests {
 
     #[test]
     fn test_rune_amount_from_tuple() {
-        let rune_id = RuneId {
-            block: 840000,
-            tx: 1,
-        };
+        let rune_id = RuneId::new(840000, 1);
         let amount = 1000000000000000000u128;
         let tuple = (rune_id, amount);
 
@@ -258,7 +264,7 @@ mod tests {
     #[test]
     fn test_rune_response_minimal() {
         let minimal = RuneResponse {
-            id: RuneId { block: 0, tx: 0 },
+            id: RuneId::new(0, 0),
             block: 0,
             burned: 0,
             divisibility: 0,
@@ -303,10 +309,7 @@ mod tests {
     #[test]
     fn test_rune_response_extreme_values() {
         let extreme = RuneResponse {
-            id: RuneId {
-                block: u64::MAX,
-                tx: u32::MAX,
-            },
+            id: RuneId::new(u64::MAX, u32::MAX),
             block: u64::MAX,
             burned: u128::MAX,
             divisibility: u8::MAX,
@@ -360,17 +363,11 @@ mod tests {
     #[test]
     fn test_rune_amounts_different_rune_ids() {
         let rune1 = RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         };
         let rune2 = RuneAmount {
-            rune_id: RuneId {
-                block: 840001,
-                tx: 2,
-            },
+            rune_id: RuneId::new(840001, 2),
             amount: 1000000000000000000u128,
         };
 
@@ -385,17 +382,11 @@ mod tests {
     #[test]
     fn test_rune_amounts_different_amounts() {
         let rune1 = RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         };
         let rune2 = RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 2000000000000000000u128,
         };
 
@@ -429,24 +420,15 @@ mod tests {
     fn test_collection_of_rune_amounts() {
         let rune_amounts = vec![
             RuneAmount {
-                rune_id: RuneId {
-                    block: 840000,
-                    tx: 1,
-                },
+                rune_id: RuneId::new(840000, 1),
                 amount: 1000000000000000000u128,
             },
             RuneAmount {
-                rune_id: RuneId {
-                    block: 840001,
-                    tx: 2,
-                },
+                rune_id: RuneId::new(840001, 2),
                 amount: 2000000000000000000u128,
             },
             RuneAmount {
-                rune_id: RuneId {
-                    block: 840002,
-                    tx: 3,
-                },
+                rune_id: RuneId::new(840002, 3),
                 amount: 3000000000000000000u128,
             },
         ];

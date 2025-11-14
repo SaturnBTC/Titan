@@ -27,7 +27,7 @@ use {
     },
     fetcher::{block_fetcher::fetch_blocks_from, mempool_fetcher::MempoolError},
     indicatif::{ProgressBar, ProgressStyle},
-    ordinals::{Rune, RuneId, SpacedRune, Terms},
+    ordinals::{Rune, SpacedRune, Terms},
     prometheus::HistogramVec,
     rollback::{Rollback, RollbackError},
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
@@ -41,7 +41,7 @@ use {
     },
     store_lock::StoreWithLock,
     thiserror::Error,
-    titan_types::{Block, Event, MempoolEntry, SerializedTxid},
+    titan_types::{Block, Event, MempoolEntry, RuneId, SerializedTxid},
     tokio::sync::mpsc::{error::SendError, Sender},
     tracing::{debug, error, info, warn},
 };
@@ -997,7 +997,7 @@ impl Updater {
     fn insert_genesis_rune(&self) -> Result<()> {
         let rune = Rune(2055900680524219742);
 
-        let id = RuneId { block: 1, tx: 0 };
+        let id = RuneId::new(1, 0);
         let etching = SerializedTxid::all_zeros();
 
         let rune = RuneEntry {

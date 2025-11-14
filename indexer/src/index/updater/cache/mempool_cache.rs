@@ -11,9 +11,10 @@ use {
         },
     },
     bitcoin::{consensus, ScriptBuf, Transaction},
-    ordinals::{Rune, RuneId},
+    ordinals::Rune,
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::{sync::Arc, time::Instant},
+    titan_types::RuneId,
     titan_types::{
         Event, InscriptionId, Location, MempoolEntry, SerializedOutPoint, SerializedTxid,
         SpenderReference, SpentStatus, TxOut,

@@ -1,7 +1,7 @@
 use {
     crate::models::{BlockId, Inscription, RuneEntry, TransactionStateChange, TxRuneIndexRef},
     borsh::{BorshDeserialize, BorshSerialize},
-    titan_types::{Block, MempoolEntry, SpenderReference, Subscription, TxOut},
+    titan_types::{Block, MempoolEntry, RuneId, SpenderReference, Subscription, TxOut},
 };
 
 pub trait Entry: Sized + BorshDeserialize + BorshSerialize {
@@ -34,3 +34,4 @@ impl Entry for TxOut {}
 impl Entry for Subscription {}
 impl Entry for SpenderReference {}
 impl Entry for MempoolEntry {}
+impl Entry for RuneId {}

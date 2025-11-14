@@ -1,12 +1,11 @@
 use {
-    crate::SerializedTxid,
+    crate::{rune_id::RuneId, SerializedTxid},
     bitcoin::{
         block::{Header, Version},
         hashes::Hash,
         BlockHash, CompactTarget, TxMerkleNode,
     },
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::RuneId,
     serde::{Deserialize, Serialize},
     std::io::{Read, Result, Write},
 };
@@ -111,7 +110,7 @@ impl BorshDeserialize for Block {
         for _ in 0..etched_len {
             let block = u64::deserialize_reader(reader)?;
             let tx = u32::deserialize_reader(reader)?;
-            etched_runes.push(RuneId { block, tx });
+            etched_runes.push(RuneId::new(block, tx));
         }
 
         Ok(Self {
@@ -137,9 +136,9 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rune_id::RuneId;
     use bitcoin::{block::Version, hashes::Hash, BlockHash, CompactTarget, TxMerkleNode};
     use borsh::BorshDeserialize;
-    use ordinals::RuneId;
 
     /// Helper function to create a sample Header for testing
     fn create_test_header() -> Header {
@@ -165,9 +164,9 @@ mod tests {
     /// Helper function to create test RuneIds
     fn create_test_rune_ids() -> Vec<RuneId> {
         vec![
-            RuneId { block: 100, tx: 0 },
-            RuneId { block: 101, tx: 1 },
-            RuneId { block: 102, tx: 2 },
+            RuneId::new(100, 0),
+            RuneId::new(101, 1),
+            RuneId::new(102, 2),
         ]
     }
 
@@ -246,10 +245,7 @@ mod tests {
     #[test]
     fn test_block_with_single_rune_serialization() {
         let header = create_test_header();
-        let etched_runes = vec![RuneId {
-            block: 999,
-            tx: 888,
-        }];
+        let etched_runes = vec![RuneId::new(999, 888)];
 
         let block = Block {
             height: 2,
@@ -287,10 +283,7 @@ mod tests {
             height: u64::MAX,
             header: header.clone(),
             tx_ids: vec![SerializedTxid::all_zeros()],
-            etched_runes: vec![RuneId {
-                block: u64::MAX,
-                tx: u32::MAX,
-            }],
+            etched_runes: vec![RuneId::new(u64::MAX, u32::MAX)],
         };
 
         // Serialize
@@ -321,10 +314,7 @@ mod tests {
             .collect();
 
         let large_etched_runes: Vec<RuneId> = (0..500)
-            .map(|i| RuneId {
-                block: i as u64,
-                tx: (i * 2) as u32,
-            })
+            .map(|i| RuneId::new(i as u64, (i * 2) as u32))
             .collect();
 
         let block = Block {

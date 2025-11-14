@@ -5,4 +5,3 @@ mod error;
 mod mapper;
 mod rocks;
 pub mod util;
-mod wrapper;

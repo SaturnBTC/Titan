@@ -1,8 +1,7 @@
 use bitcoin::ScriptBuf;
-use ordinals::RuneId;
 use std::convert::TryInto;
 
-use titan_types::SerializedOutPoint;
+use titan_types::{RuneId, SerializedOutPoint};
 
 /// Creates an `OutPoint` from a 36-byte slice.
 /// Returns an error if the slice is not exactly 36 bytes long.
@@ -15,27 +14,6 @@ pub fn outpoint_from_bytes(bytes: &[u8]) -> Result<SerializedOutPoint, &'static 
     let vout = u32::from_le_bytes(bytes[32..36].try_into().unwrap());
 
     Ok(SerializedOutPoint::new(&bytes[0..32], vout))
-}
-
-/// Converts an `RuneId` to a 12-byte Vec<u8>.
-pub fn rune_id_to_bytes(rune_id: &RuneId) -> Vec<u8> {
-    let mut buffer: Vec<u8> = Vec::with_capacity(12);
-    buffer.extend_from_slice(&rune_id.block.to_le_bytes());
-    buffer.extend_from_slice(&rune_id.tx.to_le_bytes());
-    buffer
-}
-
-/// Creates an `RuneId` from a 12-byte slice.
-/// Returns an error if the slice is not exactly 12 bytes long.
-pub fn rune_id_from_bytes(bytes: &[u8]) -> Result<RuneId, &'static str> {
-    if bytes.len() != 12 {
-        return Err("Invalid length for RuneId, expected 12 bytes");
-    }
-
-    Ok(RuneId {
-        block: u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
-        tx: u32::from_le_bytes(bytes[8..12].try_into().unwrap()),
-    })
 }
 
 pub fn script_pubkey_outpoint_to_bytes(
@@ -73,18 +51,24 @@ pub fn parse_outpoint_from_script_pubkey_key(
 }
 
 pub fn rune_index_key(rune_id: &RuneId) -> Vec<u8> {
-    let mut v = Vec::with_capacity(rune_id_to_bytes(rune_id).len() + 10);
+    let rune_id_bytes = rune_id.to_bytes();
+    let mut v = Vec::with_capacity(rune_id_bytes.len() + 10);
     v.extend_from_slice(b"rune_index:");
-    v.extend_from_slice(&rune_id_to_bytes(rune_id));
+    v.extend_from_slice(&rune_id_bytes);
     v
 }
 
 pub fn rune_transaction_key(rune_id: &RuneId, index: u64) -> Vec<u8> {
-    let rune_id_bytes = rune_id_to_bytes(rune_id);
+    rune_transaction_key_from_bytes(&rune_id.to_bytes(), index)
+}
+
+/// Builds a rune transaction key from raw bytes without reconstructing a RuneId.
+/// This is more efficient when you already have the bytes (e.g., from TxRuneIndexRef).
+pub fn rune_transaction_key_from_bytes(rune_id_bytes: &[u8], index: u64) -> Vec<u8> {
     // Build something like "rune:<id>:\x??\x??...\x??"
     let mut v = Vec::with_capacity(rune_id_bytes.len() + 6 + 8);
     v.extend_from_slice(b"rune:");
-    v.extend_from_slice(&rune_id_bytes);
+    v.extend_from_slice(rune_id_bytes);
     v.push(b':');
     // Now push the index in little-endian
     v.extend_from_slice(&index.to_le_bytes());

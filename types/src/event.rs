@@ -1,8 +1,8 @@
 use {
+    crate::rune_id::RuneId,
     crate::{MempoolEntry, SerializedOutPoint, SerializedTxid},
     bitcoin::BlockHash,
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::RuneId,
     serde::{Deserialize, Serialize},
     std::fmt,
 };

@@ -5,8 +5,9 @@ use {
         models::{BlockId, RuneEntry, TransactionStateChange, TransactionStateChangeInput},
     },
     bitcoin::Transaction,
-    ordinals::{Artifact, Etching, Rune, RuneId, Runestone, SpacedRune},
+    ordinals::{Artifact, Etching, Rune, Runestone, SpacedRune},
     thiserror::Error,
+    titan_types::RuneId,
     titan_types::{Event, SerializedOutPoint, SerializedTxid, SpenderReference, TxOut},
     tokio::sync::mpsc::error::SendError,
 };

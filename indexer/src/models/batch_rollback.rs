@@ -1,9 +1,10 @@
 use {
     super::RuneEntry,
     bitcoin::ScriptBuf,
-    ordinals::{Rune, RuneId},
+    ordinals::Rune,
     rustc_hash::FxHashMap as HashMap,
     std::fmt::Display,
+    titan_types::RuneId,
     titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, TxOut},
 };
 

@@ -136,9 +136,8 @@ impl BorshDeserialize for TxOut {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rune::RuneAmount;
+    use crate::{rune::RuneAmount, rune_id::RuneId};
     use borsh::{BorshDeserialize, BorshSerialize};
-    use ordinals::RuneId;
 
     /// Helper function to test borsh serialization roundtrip
     fn test_borsh_roundtrip<T>(original: &T) -> T
@@ -171,10 +170,7 @@ mod tests {
 
     fn create_test_rune_amount() -> RuneAmount {
         RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         }
     }
@@ -298,24 +294,15 @@ mod tests {
     #[test]
     fn test_tx_out_entry_multiple_runes() {
         let rune1 = RuneAmount {
-            rune_id: RuneId {
-                block: 840000,
-                tx: 1,
-            },
+            rune_id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         };
         let rune2 = RuneAmount {
-            rune_id: RuneId {
-                block: 840001,
-                tx: 2,
-            },
+            rune_id: RuneId::new(840001, 2),
             amount: 2000000000000000000u128,
         };
         let rune3 = RuneAmount {
-            rune_id: RuneId {
-                block: 840002,
-                tx: 3,
-            },
+            rune_id: RuneId::new(840002, 3),
             amount: 3000000000000000000u128,
         };
 
@@ -363,20 +350,14 @@ mod tests {
         // Test with larger collections
         let runes: Vec<RuneAmount> = (0..10)
             .map(|i| RuneAmount {
-                rune_id: RuneId {
-                    block: 840000 + i,
-                    tx: i as u32,
-                },
+                rune_id: RuneId::new(840000 + i, i as u32),
                 amount: (i as u128 + 1) * 1000000000000000000u128,
             })
             .collect();
 
         let risky_runes: Vec<RuneAmount> = (10..15)
             .map(|i| RuneAmount {
-                rune_id: RuneId {
-                    block: 840000 + i,
-                    tx: i as u32,
-                },
+                rune_id: RuneId::new(840000 + i, i as u32),
                 amount: (i as u128 + 1) * 500000000000000000u128,
             })
             .collect();
@@ -413,10 +394,7 @@ mod tests {
     #[test]
     fn test_edge_cases_with_extreme_rune_values() {
         let extreme_rune = RuneAmount {
-            rune_id: RuneId {
-                block: u64::MAX,
-                tx: u32::MAX,
-            },
+            rune_id: RuneId::new(u64::MAX, u32::MAX),
             amount: u128::MAX,
         };
 

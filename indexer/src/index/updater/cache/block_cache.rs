@@ -2,8 +2,9 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use bitcoin::{consensus, BlockHash, ScriptBuf, Transaction};
 use clru::CLruCache;
-use ordinals::{Rune, RuneId};
+use ordinals::Rune;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use titan_types::RuneId;
 use titan_types::{
     Block, Event, Location, SerializedOutPoint, SerializedTxid, SpenderReference, SpentStatus,
     TxOut,
@@ -557,7 +558,7 @@ impl TransactionStore for BlockCache {
 
     fn get_rune(
         &mut self,
-        rune_id: &ordinals::RuneId,
+        rune_id: &RuneId,
     ) -> std::result::Result<crate::models::RuneEntry, StoreError> {
         // 1. Current update.
         if let Some(rune) = self.update.runes.get(rune_id) {
@@ -620,7 +621,7 @@ impl TransactionStore for BlockCache {
         self.update.runes.insert(id, entry);
     }
 
-    fn set_rune_id_number(&mut self, number: u64, id: ordinals::RuneId) {
+    fn set_rune_id_number(&mut self, number: u64, id: RuneId) {
         self.update.rune_numbers.insert(number, id);
     }
 

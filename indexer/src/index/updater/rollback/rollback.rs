@@ -5,12 +5,12 @@ use {
         models::{TransactionStateChange, TransactionStateChangeInput},
     },
     bitcoin::ScriptBuf,
-    ordinals::RuneId,
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::sync::Arc,
     thiserror::Error,
+    titan_types::RuneId,
     titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, SpentStatus},
-    tracing::{info, trace, warn},
+    tracing::{info, warn},
 };
 
 #[derive(Debug, Error)]

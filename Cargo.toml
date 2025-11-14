@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [workspace.dependencies]
 # workspace
-titan-types = { version = "0.1.31" }
+titan-types = { path = "types" }
 
 async-trait = "0.1.86"
 axum = "0.8.1"

@@ -24,6 +24,7 @@ mod outpoint;
 mod pagination;
 pub mod query;
 mod rune;
+mod rune_id;
 mod serde_str;
 mod stats;
 mod subscription;
@@ -33,14 +34,15 @@ mod tx_out;
 mod txid;
 
 // Re-export from ordinals crate
-pub use ordinals::{Artifact, Cenotaph, Edict, Etching, Rune, RuneId, Runestone, SpacedRune};
+pub use ordinals::{Artifact, Cenotaph, Edict, Etching, Rune, Runestone, SpacedRune};
+
+pub use crate::rune_id::RuneId;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use bitcoin::{hashes::Hash, BlockHash, ScriptBuf};
     use borsh::{BorshDeserialize, BorshSerialize};
-    use ordinals::RuneId;
     use serde_json;
     use std::str::FromStr;
 
@@ -85,10 +87,7 @@ mod tests {
 
     #[test]
     fn test_rune_amount() {
-        let rune_id = RuneId {
-            block: 840000,
-            tx: 1,
-        };
+        let rune_id = RuneId::new(840000, 1);
         let original = RuneAmount {
             rune_id,
             amount: 1000000000000000000u128,
@@ -130,10 +129,7 @@ mod tests {
 
     #[test]
     fn test_tx_out_entry() {
-        let rune_id = RuneId {
-            block: 840000,
-            tx: 1,
-        };
+        let rune_id = RuneId::new(840000, 1);
         let rune_amount = RuneAmount {
             rune_id,
             amount: 500000000000000000u128,
@@ -157,10 +153,7 @@ mod tests {
     #[test]
     fn test_transaction_tx_out() {
         let script = ScriptBuf::from_bytes(vec![0x76, 0xa9, 0x14]); // OP_DUP OP_HASH160 PUSH(20)
-        let rune_id = RuneId {
-            block: 840000,
-            tx: 1,
-        };
+        let rune_id = RuneId::new(840000, 1);
         let rune_amount = RuneAmount {
             rune_id,
             amount: 100000000000000000u128,
@@ -286,10 +279,7 @@ mod tests {
 
         // Test max values
         let max_rune_amount = RuneAmount {
-            rune_id: RuneId {
-                block: u64::MAX,
-                tx: u32::MAX,
-            },
+            rune_id: RuneId::new(u64::MAX, u32::MAX),
             amount: u128::MAX,
         };
         test_borsh_roundtrip(&max_rune_amount);
@@ -299,14 +289,8 @@ mod tests {
     #[test]
     fn test_complex_nested_structures() {
         // Create a complex TxOut with multiple runes
-        let rune_id1 = RuneId {
-            block: 840000,
-            tx: 1,
-        };
-        let rune_id2 = RuneId {
-            block: 840001,
-            tx: 2,
-        };
+        let rune_id1 = RuneId::new(840000, 1);
+        let rune_id2 = RuneId::new(840001, 2);
 
         let rune_amounts = vec![
             RuneAmount {
@@ -340,10 +324,7 @@ mod tests {
     fn test_serialization_consistency() {
         // Ensure that the same data serialized with Borsh and Serde produces
         // the same result when deserialized
-        let rune_id = RuneId {
-            block: 840000,
-            tx: 1,
-        };
+        let rune_id = RuneId::new(840000, 1);
         let original = RuneAmount {
             rune_id,
             amount: 1000000000000000000u128,

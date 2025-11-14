@@ -439,6 +439,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
+name = "bytemuck"
+version = "1.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fbdf580320f38b612e485521afda1ee26d10cc9884efaaa750d383e13e3c5f4"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2682,7 +2702,7 @@ dependencies = [
  "serde_with",
  "thiserror 2.0.9",
  "threadpool",
- "titan-types 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
+ "titan-types",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -2703,7 +2723,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.9",
- "titan-types 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
+ "titan-types",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2718,29 +2738,12 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
+ "bytemuck",
  "hex",
  "http",
  "ordinals",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
- "uuid",
-]
-
-[[package]]
-name = "titan-types"
-version = "0.1.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acd41b20e33ff1ecb13726da0507df4a40f3888bf9271e6b7d78544ed940f7a7"
-dependencies = [
- "bitcoin",
- "bitcoincore-rpc",
- "borsh",
- "brotli",
- "hex",
- "http",
- "ordinals",
- "serde",
  "thiserror 2.0.9",
  "uuid",
 ]

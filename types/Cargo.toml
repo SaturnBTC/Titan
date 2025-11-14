@@ -16,6 +16,7 @@ bitcoin = { workspace = true }
 bitcoincore-rpc = { workspace = true }
 borsh = { workspace = true }
 brotli = { workspace = true }
+bytemuck = { version = "1", features = ["derive"] }
 http = { workspace = true }
 ordinals = { workspace = true }
 serde = { workspace = true }

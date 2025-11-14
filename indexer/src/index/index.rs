@@ -12,7 +12,7 @@ use {
         models::{block_id_to_transaction_status, Inscription, RuneEntry},
     },
     bitcoin::{Address, BlockHash, Transaction as BitcoinTransaction},
-    ordinals::{Rune, RuneId},
+    ordinals::Rune,
     rustc_hash::FxHashMap as HashMap,
     std::{
         sync::{
@@ -22,6 +22,7 @@ use {
         thread::{self},
         time::Duration,
     },
+    titan_types::RuneId,
     titan_types::{
         AddressData, AddressTxOut, Block, Event, InscriptionId, MempoolEntry, Pagination,
         PaginationResponse, RuneAmount, SerializedOutPoint, SerializedTxid, Transaction,

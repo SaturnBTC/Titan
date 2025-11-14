@@ -1,9 +1,9 @@
 use {
     super::{BlockId, Inscription, RuneEntry, TransactionStateChange},
     bitcoin::{BlockHash, ScriptBuf, Transaction},
-    ordinals::RuneId,
     rustc_hash::FxHashMap as HashMap,
     std::fmt::Display,
+    titan_types::RuneId,
     titan_types::{
         Block, InscriptionId, MempoolEntry, SerializedOutPoint, SerializedTxid, SpenderReference,
         TxOut,

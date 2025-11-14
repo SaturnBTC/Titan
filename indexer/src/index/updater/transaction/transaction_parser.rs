@@ -8,10 +8,10 @@ use {
     },
     bitcoin::{consensus::encode, OutPoint, Transaction},
     bitcoincore_rpc::{Client, RpcApi},
-    ordinals::{Artifact, Edict, Height, Rune, RuneId, Runestone},
+    ordinals::{Artifact, Edict, Height, Rune, Runestone},
     rustc_hash::FxHashMap as HashMap,
     thiserror::Error,
-    titan_types::{RuneAmount, SerializedOutPoint, SpentStatus, TxOut},
+    titan_types::{RuneAmount, RuneId, SerializedOutPoint, SpentStatus, TxOut},
 };
 
 #[derive(Debug, Error)]
@@ -162,7 +162,8 @@ impl<'client> TransactionParser<'client> {
 
         // If there is a mintable rune, add its amount into the unallocated maps.
         if let Some(artifact) = &artifact {
-            if let Some(id) = artifact.mint() {
+            if let Some(ordinals_id) = artifact.mint() {
+                let id = RuneId::new(ordinals_id.block, ordinals_id.tx);
                 if let Some(amount) = self.mint(store, id)? {
                     if self.mempool {
                         *risky_unallocated.entry(id).or_default() += amount;
@@ -195,14 +196,15 @@ impl<'client> TransactionParser<'client> {
                     let output = usize::try_from(output).unwrap();
                     assert!(output <= tx.output.len());
 
-                    let id = if id == RuneId::default() {
+                    // Convert ordinals::RuneId to titan_types::RuneId
+                    let id = if id.block == 0 && id.tx == 0 {
                         // If the edict did not specify an id, use the etched id (if available)
                         let Some((id, ..)) = etched else {
                             continue;
                         };
                         id
                     } else {
-                        id
+                        RuneId::new(id.block, id.tx)
                     };
 
                     if let Some(balance) = unallocated.get_mut(&id) {
@@ -392,10 +394,7 @@ impl<'client> TransactionParser<'client> {
             Rune::reserved(self.height.into(), tx_index)
         };
 
-        let rune_id = RuneId {
-            block: self.height.into(),
-            tx: tx_index,
-        };
+        let rune_id = RuneId::new(self.height.into(), tx_index);
 
         Ok(Some((rune_id, rune)))
     }
