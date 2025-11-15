@@ -51,9 +51,21 @@ impl AlkanesIndexer {
         
         // Create logging interceptor if enabled
         let logging_interceptor = if enable_logging {
+            // Buffer to accumulate log messages until newline
+            let buffer = Arc::new(Mutex::new(String::new()));
+            
             Some(Box::new(move |msg: String| {
-                // Use ANSI escape codes for cyan color on [WASM] prefix
-                println!("\x1b[36m[WASM]\x1b[0m {}", msg);
+                let mut buf = buffer.lock().unwrap();
+                buf.push_str(&msg);
+                
+                // Print complete lines when we encounter a newline
+                while let Some(newline_pos) = buf.find('\n') {
+                    let line = buf.drain(..=newline_pos).collect::<String>();
+                    let line = line.trim_end();
+                    if !line.is_empty() {
+                        println!("\x1b[36m[WASM]\x1b[0m {}", line);
+                    }
+                }
             }) as Box<dyn FnMut(String) + Send>)
         } else {
             // No-op: don't log anything
@@ -78,8 +90,21 @@ impl AlkanesIndexer {
         
         // Create logging interceptor if enabled
         let logging_interceptor = if enable_logging {
+            // Buffer to accumulate log messages until newline
+            let buffer = Arc::new(Mutex::new(String::new()));
+            
             Some(Box::new(move |msg: String| {
-                println!("\x1b[36m[WASM]\x1b[0m {}", msg);
+                let mut buf = buffer.lock().unwrap();
+                buf.push_str(&msg);
+                
+                // Print complete lines when we encounter a newline
+                while let Some(newline_pos) = buf.find('\n') {
+                    let line = buf.drain(..=newline_pos).collect::<String>();
+                    let line = line.trim_end();
+                    if !line.is_empty() {
+                        println!("\x1b[36m[WASM]\x1b[0m {}", line);
+                    }
+                }
             }) as Box<dyn FnMut(String) + Send>)
         } else {
             None

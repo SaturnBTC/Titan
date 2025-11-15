@@ -494,7 +494,14 @@ impl<'client> TransactionParser<'client> {
             .get_raw_transaction_info(&outpoint.txid, None)
             .into_option()?
         else {
-            panic!("can't get input transaction: {}", outpoint.txid);
+            // Transaction not found in Bitcoin Core (likely txindex not enabled or tx pruned)
+            // Return false instead of panicking - this is not a fatal error
+            tracing::warn!(
+                "Cannot validate commit transaction {}: transaction not found in Bitcoin Core. \
+                 This may indicate txindex is not enabled or the transaction was pruned.",
+                outpoint.txid
+            );
+            return Ok(false);
         };
 
         let taproot = tx_info.vout[outpoint.vout.into_usize()]
