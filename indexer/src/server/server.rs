@@ -72,12 +72,6 @@ impl Server {
         config: Arc<ServerConfig>,
         handle: Handle,
     ) -> SpawnResult<task::JoinHandle<io::Result<()>>> {
-        let app_state = AppState {
-            config: config.clone(),
-            alkanes_indexer,
-            index: index.clone(),
-        };
-        
         let router = Router::new()
             // Health check
             .route("/", get(Self::health_check))
@@ -121,7 +115,23 @@ impl Server {
             )
             .route("/subscription", post(Self::add_subscription))
             .route("/subscriptions", get(Self::subscriptions))
-            .merge(crate::api::alkanes::router(app_state))
+            // Alkanes routes - added directly to avoid Axum router merging issues
+            .route("/alkanes/health", get(crate::api::alkanes::AlkanesHandlers::health_check))
+            .route("/alkanes/debug", get(crate::api::alkanes::AlkanesHandlers::debug_extension))
+            .route("/alkanes/getbytecode/{alkane_id}", get(crate::api::alkanes::AlkanesHandlers::get_bytecode))
+            .route("/alkanes/getbytecode/{alkane_id}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::get_bytecode_at_height))
+            .route("/alkanes/byaddress/{address}", get(crate::api::alkanes::AlkanesHandlers::by_address))
+            .route("/alkanes/byaddress/{address}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::by_address_at_height))
+            .route("/alkanes/byoutpoint/{outpoint}", get(crate::api::alkanes::AlkanesHandlers::by_outpoint))
+            .route("/alkanes/byoutpoint/{outpoint}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::by_outpoint_at_height))
+            .route("/alkanes/trace/{outpoint}", get(crate::api::alkanes::AlkanesHandlers::trace_outpoint))
+            .route("/alkanes/trace/{outpoint}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::trace_outpoint_at_height))
+            .route("/alkanes/getinventory/{alkane_id}", get(crate::api::alkanes::AlkanesHandlers::get_inventory))
+            .route("/alkanes/getinventory/{alkane_id}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::get_inventory_at_height))
+            .route("/alkanes/getstorageat/{alkane_id}/{key}", get(crate::api::alkanes::AlkanesHandlers::get_storage_at))
+            .route("/alkanes/getstorageat/{alkane_id}/{key}/atheight/{height}", get(crate::api::alkanes::AlkanesHandlers::get_storage_at_at_height))
+            .route("/alkanes/simulate", post(crate::api::alkanes::AlkanesHandlers::simulate))
+            .layer(Extension(alkanes_indexer))
             .layer(Extension(index))
             .layer(Extension(webhook_subscription_manager))
             .layer(Extension(bitcoin_rpc_pool))
@@ -452,19 +462,12 @@ where
 {
     type Rejection = (StatusCode, &'static str);
 
-    fn from_request_parts<'life0, 'life1, 'async_trait>(
-        parts: &'life0 mut http::request::Parts,
-        _state: &'life1 S,
-    ) -> ::core::pin::Pin<Box<dyn ::core::future::Future<Output = Result<Self, Self::Rejection>> + ::core::marker::Send + 'async_trait>>
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            Ok(Self(parts.headers.get("accept-encoding").map(|value| {
-                value.to_str().unwrap_or_default().to_owned()
-            })))
-        })
+    async fn from_request_parts(
+        parts: &mut http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(parts.headers.get("accept-encoding").map(|value| {
+            value.to_str().unwrap_or_default().to_owned()
+        })))
     }
 }
