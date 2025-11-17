@@ -1,10 +1,12 @@
 use std::io::{Read, Result, Write};
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use ordinals::{Rune, SpacedRune, Terms};
+use ordinals::Terms;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use titan_types::{InscriptionId, MintResponse, RuneId, RuneResponse, SerializedTxid};
+use titan_types::{
+    InscriptionId, MintResponse, Rune, RuneId, RuneResponse, SerializedTxid, SpacedRune,
+};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum MintError {

@@ -1,9 +1,8 @@
 use rustc_hash::FxHashMap as HashMap;
 
 use bitcoin::{ScriptBuf, Transaction};
-use ordinals::Rune;
 use titan_types::{
-    InscriptionId, RuneId, SerializedOutPoint, SerializedTxid, SpenderReference, TxOut,
+    InscriptionId, Rune, RuneId, SerializedOutPoint, SerializedTxid, SpenderReference, TxOut,
 };
 
 use crate::{

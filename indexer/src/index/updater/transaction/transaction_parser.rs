@@ -8,9 +8,10 @@ use {
     },
     bitcoin::{consensus::encode, OutPoint, Transaction},
     bitcoincore_rpc::{Client, RpcApi},
-    ordinals::{Artifact, Edict, Height, Rune, Runestone},
+    ordinals::{Artifact, Edict, Height, Runestone},
     rustc_hash::FxHashMap as HashMap,
     thiserror::Error,
+    titan_types::Rune,
     titan_types::{RuneAmount, RuneId, SerializedOutPoint, SpentStatus, TxOut},
 };
 
@@ -363,11 +364,11 @@ impl<'client> TransactionParser<'client> {
 
         let rune: Option<Rune> = match artifact {
             Artifact::Runestone(runestone) => match runestone.etching {
-                Some(etching) => etching.rune,
+                Some(etching) => etching.rune.map(|r| Rune(r.n())),
                 None => return Ok(None),
             },
             Artifact::Cenotaph(cenotaph) => match cenotaph.etching {
-                Some(rune) => Some(rune),
+                Some(rune) => Some(Rune(rune.n())),
                 None => return Ok(None),
             },
         };

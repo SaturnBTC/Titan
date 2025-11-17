@@ -1,7 +1,8 @@
 use {
-    crate::{inscription_id::InscriptionId, rune_id::RuneId, SerializedTxid},
+    crate::{
+        inscription_id::InscriptionId, rune_id::RuneId, spaced_rune::SpacedRune, SerializedTxid,
+    },
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::SpacedRune,
     serde::{Deserialize, Serialize},
     std::io::{Read, Result, Write},
 };
@@ -111,8 +112,8 @@ impl BorshDeserialize for RuneAmount {
 mod tests {
     use super::*;
     use crate::rune_id::RuneId;
+    use crate::{rune_type::Rune, spaced_rune::SpacedRune};
     use borsh::{BorshDeserialize, BorshSerialize};
-    use ordinals::{Rune, SpacedRune};
 
     /// Helper function to test borsh serialization roundtrip
     fn test_borsh_roundtrip<T>(original: &T) -> T

@@ -27,7 +27,7 @@ use {
     },
     fetcher::{block_fetcher::fetch_blocks_from, mempool_fetcher::MempoolError},
     indicatif::{ProgressBar, ProgressStyle},
-    ordinals::{Rune, SpacedRune, Terms},
+    ordinals::Terms,
     prometheus::HistogramVec,
     rollback::{Rollback, RollbackError},
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
@@ -42,6 +42,7 @@ use {
     store_lock::StoreWithLock,
     thiserror::Error,
     titan_types::{Block, Event, MempoolEntry, RuneId, SerializedTxid},
+    titan_types::{Rune, SpacedRune},
     tokio::sync::mpsc::{error::SendError, Sender},
     tracing::{debug, error, info, warn},
 };

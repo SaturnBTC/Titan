@@ -1,13 +1,13 @@
 use {
     bitcoin::{address::FromScriptError, Address, Network, Script},
     clap::ValueEnum,
-    ordinals::Rune,
     serde::{Deserialize, Serialize},
     std::{
         fmt::{self, Display, Formatter},
         str::FromStr,
     },
     thiserror::Error,
+    titan_types::Rune,
 };
 
 #[derive(Error, Debug, Clone, PartialEq)]

@@ -25,7 +25,9 @@ mod pagination;
 pub mod query;
 mod rune;
 mod rune_id;
+mod rune_type;
 mod serde_str;
+mod spaced_rune;
 mod stats;
 mod subscription;
 mod transaction;
@@ -34,9 +36,11 @@ mod tx_out;
 mod txid;
 
 // Re-export from ordinals crate
-pub use ordinals::{Artifact, Cenotaph, Edict, Etching, Rune, Runestone, SpacedRune};
+pub use ordinals::{Artifact, Cenotaph, Edict, Etching, Runestone};
 
 pub use crate::rune_id::RuneId;
+pub use crate::rune_type::Rune;
+pub use crate::spaced_rune::SpacedRune;
 
 #[cfg(test)]
 mod tests {

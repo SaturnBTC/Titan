@@ -2,13 +2,12 @@ use {
     super::Lot,
     bitcoin::ScriptBuf,
     borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::Rune,
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::{
         fmt::Display,
         io::{Read, Result, Write},
     },
-    titan_types::{RuneAmount, RuneId, SerializedOutPoint, TxOut},
+    titan_types::{Rune, RuneAmount, RuneId, SerializedOutPoint, TxOut},
 };
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]

@@ -7,13 +7,13 @@ use {
         },
     },
     bitcoin::{consensus, hex::HexToArrayError, BlockHash, ScriptBuf},
-    ordinals::Rune,
     rustc_hash::FxHashMap as HashMap,
     thiserror::Error,
     titan_types::RuneId,
     titan_types::{
-        Block, InscriptionId, MempoolEntry, Pagination, PaginationResponse, SerializedOutPoint,
-        SerializedTxid, SpenderReference, SpentStatus, Transaction, TransactionStatus, TxOut,
+        Block, InscriptionId, MempoolEntry, Pagination, PaginationResponse, Rune,
+        SerializedOutPoint, SerializedTxid, SpenderReference, SpentStatus, Transaction,
+        TransactionStatus, TxOut,
     },
 };
 

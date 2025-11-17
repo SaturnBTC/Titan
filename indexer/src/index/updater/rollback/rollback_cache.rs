@@ -4,11 +4,10 @@ use {
         models::{BatchRollback, RuneEntry},
     },
     bitcoin::ScriptBuf,
-    ordinals::Rune,
     rustc_hash::FxHashMap as HashMap,
     std::sync::Arc,
     titan_types::RuneId,
-    titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, TxOut},
+    titan_types::{InscriptionId, Rune, SerializedOutPoint, SerializedTxid, TxOut},
     tracing::info,
 };
 

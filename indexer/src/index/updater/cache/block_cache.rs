@@ -2,13 +2,12 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use bitcoin::{consensus, BlockHash, ScriptBuf, Transaction};
 use clru::CLruCache;
-use ordinals::Rune;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use titan_types::RuneId;
 use titan_types::{
     Block, Event, Location, SerializedOutPoint, SerializedTxid, SpenderReference, SpentStatus,
     TxOut,
 };
+use titan_types::{Rune, RuneId};
 use tracing::info;
 
 use crate::{
@@ -584,7 +583,7 @@ impl TransactionStore for BlockCache {
         Ok(rune)
     }
 
-    fn does_rune_exist(&mut self, rune: &ordinals::Rune) -> Result<()> {
+    fn does_rune_exist(&mut self, rune: &Rune) -> Result<()> {
         // 1. Current update.
         if self.update.rune_ids.contains_key(&rune.0) {
             return Ok(());
