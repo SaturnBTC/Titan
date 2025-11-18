@@ -103,7 +103,7 @@ impl<'client> TransactionParser<'client> {
 
             for (id, balance) in balances {
                 tx_out.runes.push(RuneAmount {
-                    rune_id: id,
+                    id,
                     amount: balance.0,
                 });
             }
@@ -117,7 +117,7 @@ impl<'client> TransactionParser<'client> {
 
             for (id, balance) in risky_runes_vec {
                 tx_out.risky_runes.push(RuneAmount {
-                    rune_id: id,
+                    id,
                     amount: balance.0,
                 });
             }
@@ -172,7 +172,7 @@ impl<'client> TransactionParser<'client> {
                     }
 
                     minted = Some(RuneAmount {
-                        rune_id: id,
+                        id,
                         amount: amount.0,
                     });
                 }
@@ -536,12 +536,12 @@ impl<'client> TransactionParser<'client> {
         // 3) Accumulate unallocated:
         for (_, tx_out) in outputs {
             for rune_amount in tx_out.runes {
-                *unallocated.entry(rune_amount.rune_id).or_default() += rune_amount.amount;
+                *unallocated.entry(rune_amount.id).or_default() += rune_amount.amount;
             }
 
             if self.mempool {
                 for rune_amount in tx_out.risky_runes {
-                    *risky_unallocated.entry(rune_amount.rune_id).or_default() +=
+                    *risky_unallocated.entry(rune_amount.id).or_default() +=
                         rune_amount.amount;
                 }
             }

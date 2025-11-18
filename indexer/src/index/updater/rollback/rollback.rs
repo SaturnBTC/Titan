@@ -100,7 +100,7 @@ impl<'a> Rollback<'a> {
             tx_outs.extend(tx.inputs.iter().map(|input| input.previous_outpoint));
 
             if let Some(mint) = &tx.minted {
-                runes.insert(mint.rune_id);
+                runes.insert(mint.id);
             }
 
             for (rune_id, _) in tx.burned.iter() {
@@ -164,7 +164,7 @@ impl<'a> Rollback<'a> {
 
         // Remove mints if any.
         if let Some(mint) = transaction.minted.as_ref() {
-            self.decrement_mint(&mint.rune_id)?;
+            self.decrement_mint(&mint.id)?;
         }
 
         // Remove burned if any.

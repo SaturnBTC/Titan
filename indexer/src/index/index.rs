@@ -350,14 +350,14 @@ impl Index {
         for (outpoint, tx_out) in outpoints_to_tx_out {
             for rune in tx_out.runes.iter() {
                 runes
-                    .entry(rune.rune_id)
+                    .entry(rune.id)
                     .and_modify(|amount| *amount += rune.amount)
                     .or_insert(rune.amount);
             }
 
             for rune in tx_out.risky_runes.iter() {
                 runes
-                    .entry(rune.rune_id)
+                    .entry(rune.id)
                     .and_modify(|amount| *amount += rune.amount)
                     .or_insert(rune.amount);
             }

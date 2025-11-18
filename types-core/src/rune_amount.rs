@@ -10,20 +10,20 @@ use std::io::{Read, Result, Write};
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RuneAmount {
-    pub rune_id: RuneId,
+    pub id: RuneId,
     #[cfg_attr(feature = "serde", serde(with = "crate::serde_str"))]
     pub amount: u128,
 }
 
 impl From<(RuneId, u128)> for RuneAmount {
     fn from((rune_id, amount): (RuneId, u128)) -> Self {
-        Self { rune_id, amount }
+        Self { id: rune_id, amount }
     }
 }
 
 impl PartialOrd for RuneAmount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let same_id = self.rune_id == other.rune_id;
+        let same_id = self.id == other.id;
         let amt_ord = self.amount.cmp(&other.amount);
         match (same_id, amt_ord) {
             (false, _) => None,
@@ -34,7 +34,7 @@ impl PartialOrd for RuneAmount {
 
 impl PartialEq<RuneId> for RuneAmount {
     fn eq(&self, other: &RuneId) -> bool {
-        self.rune_id == *other
+        self.id == *other
     }
 }
 
@@ -42,8 +42,8 @@ impl PartialEq<RuneId> for RuneAmount {
 impl BorshSerialize for RuneAmount {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         // Write out RuneId (block, tx):
-        BorshSerialize::serialize(&self.rune_id.block, writer)?;
-        BorshSerialize::serialize(&self.rune_id.tx, writer)?;
+        BorshSerialize::serialize(&self.id.block, writer)?;
+        BorshSerialize::serialize(&self.id.tx, writer)?;
 
         // Write out amount
         BorshSerialize::serialize(&self.amount, writer)?;
@@ -63,7 +63,7 @@ impl BorshDeserialize for RuneAmount {
         let amount = u128::deserialize_reader(reader)?;
 
         Ok(RuneAmount {
-            rune_id: RuneId::new(block, tx),
+            id: RuneId::new(block, tx),
             amount,
         })
     }
@@ -102,7 +102,7 @@ mod tests {
 
     fn create_test_rune_amount() -> RuneAmount {
         RuneAmount {
-            rune_id: RuneId::new(840000, 1),
+            id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         }
     }
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_rune_amount_zero_values() {
         let rune_amount = RuneAmount {
-            rune_id: RuneId::new(0, 0),
+            id: RuneId::new(0, 0),
             amount: 0,
         };
         #[cfg(feature = "borsh")]
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_rune_amount_max_values() {
         let rune_amount = RuneAmount {
-            rune_id: RuneId::new(u64::MAX, u32::MAX),
+            id: RuneId::new(u64::MAX, u32::MAX),
             amount: u128::MAX,
         };
         #[cfg(feature = "borsh")]
@@ -152,7 +152,7 @@ mod tests {
         let tuple = (rune_id, amount);
 
         let rune_amount: RuneAmount = tuple.into();
-        assert_eq!(rune_amount.rune_id, rune_id);
+        assert_eq!(rune_amount.id, rune_id);
         assert_eq!(rune_amount.amount, amount);
     }
 
@@ -177,11 +177,11 @@ mod tests {
     #[test]
     fn test_rune_amounts_different_rune_ids() {
         let rune1 = RuneAmount {
-            rune_id: RuneId::new(840000, 1),
+            id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         };
         let rune2 = RuneAmount {
-            rune_id: RuneId::new(840001, 2),
+            id: RuneId::new(840001, 2),
             amount: 1000000000000000000u128,
         };
 
@@ -197,11 +197,11 @@ mod tests {
     #[test]
     fn test_rune_amounts_different_amounts() {
         let rune1 = RuneAmount {
-            rune_id: RuneId::new(840000, 1),
+            id: RuneId::new(840000, 1),
             amount: 1000000000000000000u128,
         };
         let rune2 = RuneAmount {
-            rune_id: RuneId::new(840000, 1),
+            id: RuneId::new(840000, 1),
             amount: 2000000000000000000u128,
         };
 
@@ -217,15 +217,15 @@ mod tests {
     fn test_collection_of_rune_amounts() {
         let rune_amounts = vec![
             RuneAmount {
-                rune_id: RuneId::new(840000, 1),
+                id: RuneId::new(840000, 1),
                 amount: 1000000000000000000u128,
             },
             RuneAmount {
-                rune_id: RuneId::new(840001, 2),
+                id: RuneId::new(840001, 2),
                 amount: 2000000000000000000u128,
             },
             RuneAmount {
-                rune_id: RuneId::new(840002, 3),
+                id: RuneId::new(840002, 3),
                 amount: 3000000000000000000u128,
             },
         ];

@@ -94,7 +94,7 @@ impl TransactionUpdater {
                 events,
                 block_id.as_ref().map(|id| id.height),
                 txid,
-                &minted.rune_id,
+                &minted.id,
                 minted.amount,
             )?;
         }
@@ -372,7 +372,7 @@ impl TransactionUpdater {
                 location: height.into(),
                 txid,
                 outpoint,
-                rune_id: rune_amount.rune_id,
+                rune_id: rune_amount.id,
                 amount: rune_amount.amount,
             });
         }

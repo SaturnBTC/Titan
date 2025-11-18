@@ -198,7 +198,7 @@ impl TransactionStateChange {
 
         // Add minted rune id
         if let Some(minted) = self.minted.as_ref() {
-            rune_ids.insert(minted.rune_id);
+            rune_ids.insert(minted.id);
         }
 
         // Add etched rune id
@@ -209,7 +209,7 @@ impl TransactionStateChange {
         // Add rune ids from outputs
         self.outputs.iter().for_each(|output| {
             output.runes.iter().for_each(|rune| {
-                rune_ids.insert(rune.rune_id);
+                rune_ids.insert(rune.id);
             });
         });
 
