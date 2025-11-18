@@ -4,9 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use ordinals::Terms;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use titan_types::{
-    InscriptionId, MintResponse, Rune, RuneId, RuneResponse, SerializedTxid, SpacedRune,
-};
+use titan_types_api::{MintResponse, RuneResponse};
+use titan_types_core::{InscriptionId, Rune, RuneId, SerializedTxid, SpacedRune};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum MintError {

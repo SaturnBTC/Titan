@@ -1,0 +1,36 @@
+[package]
+name = "titan-types-core"
+version.workspace = true
+edition = "2021"
+
+authors = ["Marcos <mcolladomcm@email.com>"]
+license = "MIT OR Apache-2.0"
+description = "Core ordinals domain types for Titan bitcoin and runes indexer"
+repository = "https://github.com/SaturnBTC/titan"
+readme = "README.md"
+categories = []
+keywords = ["bitcoin", "indexer", "runes", "rust"]
+
+[dependencies]
+bitcoin = { version = "=0.32.5" }
+bitcoin-io = { version = "=0.1.2" }
+bytemuck = { version = "1", features = ["derive"] }
+ordinals = { workspace = true, optional = true }
+hex = { version = "0.4.3", default-features = true }
+thiserror = { workspace = true }
+
+# Optional dependencies for serialization
+borsh = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+bitcoincore-rpc = { workspace = true, optional = true }
+
+[features]
+default = ["borsh", "serde"]
+serde = ["dep:serde", "bitcoin/serde"]
+borsh = ["dep:borsh"]
+bitcoincore-rpc = ["dep:bitcoincore-rpc"]
+ordinals = ["dep:ordinals"]
+
+[dev-dependencies]
+serde_json = "1.0"
+borsh = { workspace = true }

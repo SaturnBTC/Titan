@@ -1,10 +1,11 @@
 [package]
 name = "titan"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 
 [dependencies]
-titan-types = { workspace = true }
+titan-types-core = { workspace = true, features = ["serde", "borsh", "bitcoincore-rpc"] }
+titan-types-api = { workspace = true }
 
 axum = { workspace = true }
 axum-server = { workspace = true }

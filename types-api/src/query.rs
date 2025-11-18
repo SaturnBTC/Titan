@@ -1,10 +1,10 @@
 use {
-    crate::{rune_id::RuneId, spaced_rune::SpacedRune},
     bitcoin::BlockHash,
     std::{
         fmt::{self, Display},
         str::FromStr,
     },
+    titan_types_core::{RuneId, SpacedRune},
 };
 
 #[derive(Debug, thiserror::Error)]

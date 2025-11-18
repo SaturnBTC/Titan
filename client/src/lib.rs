@@ -10,7 +10,8 @@ pub use http::{
 };
 pub use tcp::{ConnectionStatus, ConnectionStatusTracker};
 pub use tcp::{ReconnectionConfig, ReconnectionManager};
-pub use titan_types::*;
+pub use titan_types_api::*;
+pub use titan_types_core::*;
 
 #[cfg(feature = "tcp_client")]
 pub use tcp::{TitanTcpClient, TitanTcpClientConfig, TitanTcpClientError};
@@ -22,14 +23,11 @@ pub use tcp::{TitanTcpClientBlocking, TitanTcpClientBlockingConfig, TitanTcpClie
 mod tests {
     use super::*;
     use std::error::Error;
-    use titan_types::{Event, TcpSubscriptionRequest};
-    use tokio::{
-        sync::watch,
-        time::{sleep, Duration, Instant},
-    };
+    use titan_types_api::TcpSubscriptionRequest;
+    use tokio::time::{Duration, Instant};
 
     // Import the HTTP and TCP client functions.
-    use crate::http::{AsyncClient as HttpClient, TitanApiAsync as TitanApi};
+    use crate::http::TitanApiAsync as TitanApi;
     #[cfg(feature = "tcp_client")]
     use crate::tcp::TitanTcpClient;
 

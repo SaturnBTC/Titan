@@ -1,4 +1,4 @@
-use titan_types::Event;
+use titan_types_core::Event;
 use tokio::sync::mpsc;
 
 use crate::index::updater::transaction::TransactionEventMgr;

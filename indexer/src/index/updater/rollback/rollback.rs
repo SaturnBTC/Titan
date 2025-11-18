@@ -8,8 +8,8 @@ use {
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::sync::Arc,
     thiserror::Error,
-    titan_types::RuneId,
-    titan_types::{InscriptionId, SerializedOutPoint, SerializedTxid, SpentStatus},
+    titan_types_core::RuneId,
+    titan_types_core::{InscriptionId, SerializedOutPoint, SerializedTxid, SpentStatus},
     tracing::{info, warn},
 };
 

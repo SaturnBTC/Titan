@@ -13,10 +13,13 @@ use {
     http::HeaderMap,
     rustc_hash::FxHashMap as HashMap,
     std::sync::Arc,
-    titan_types::{
-        query, AddressData, Block, BlockTip, InscriptionId, MempoolEntry, Pagination,
-        PaginationResponse, RuneResponse, SerializedOutPoint, SerializedTxid, Status, Subscription,
-        Transaction, TransactionStatus, TxOut,
+    titan_types_api::{
+        query, AddressData, BlockTip, Pagination, PaginationResponse, RuneResponse, Status,
+        Subscription,
+    },
+    titan_types_core::{
+        Block, InscriptionId, MempoolEntry, SerializedOutPoint, SerializedTxid, Transaction,
+        TransactionStatus, TxOut,
     },
     tracing::error,
     uuid::Uuid,

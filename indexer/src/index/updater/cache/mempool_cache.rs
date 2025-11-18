@@ -13,9 +13,9 @@ use {
     bitcoin::{consensus, ScriptBuf, Transaction},
     rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet},
     std::{sync::Arc, time::Instant},
-    titan_types::Rune,
-    titan_types::RuneId,
-    titan_types::{
+    titan_types_core::Rune,
+    titan_types_core::RuneId,
+    titan_types_core::{
         Event, InscriptionId, Location, MempoolEntry, SerializedOutPoint, SerializedTxid,
         SpenderReference, SpentStatus, TxOut,
     },

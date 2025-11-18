@@ -1,7 +1,7 @@
 use {
-    super::EventType,
     borsh::{BorshDeserialize, BorshSerialize},
     serde::{Deserialize, Serialize},
+    titan_types_core::EventType,
     uuid::Uuid,
 };
 

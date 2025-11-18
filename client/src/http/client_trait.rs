@@ -4,10 +4,11 @@ use crate::Error;
 use async_trait::async_trait;
 use bitcoin::{OutPoint, Txid};
 use reqwest::header::HeaderMap;
-use titan_types::{
-    query, AddressData, Block, BlockTip, InscriptionId, MempoolEntry, Pagination,
-    PaginationResponse, RuneResponse, Status, Subscription, Transaction, TransactionStatus, TxOut,
+use titan_types_api::{
+    query, AddressData, BlockTip, Pagination, PaginationResponse, RuneResponse, Status,
+    Subscription,
 };
+use titan_types_core::{Block, InscriptionId, MempoolEntry, Transaction, TransactionStatus, TxOut};
 
 /// Trait for all **async** methods.
 #[async_trait]

@@ -3,7 +3,7 @@ use {
     crate::subscription::WebhookSubscriptionManager,
     chrono::{DateTime, Utc},
     std::{fs::OpenOptions, io::Write, sync::Arc, time::SystemTime},
-    titan_types::Event,
+    titan_types_core::Event,
     tokio::{
         select,
         sync::{mpsc, watch},

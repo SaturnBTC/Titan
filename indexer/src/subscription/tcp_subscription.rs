@@ -1,7 +1,8 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::sync::Arc;
 use std::time::Duration;
-use titan_types::{Event, EventType, TcpSubscriptionRequest};
+use titan_types_api::TcpSubscriptionRequest;
+use titan_types_core::{Event, EventType};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::{

@@ -1,21 +1,26 @@
-use {
-    crate::SerializedTxid,
-    bitcoincore_rpc::json::GetMempoolEntryResult,
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Serialize},
-    std::io::{Read, Result, Write},
-};
+use crate::SerializedTxid;
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, Serialize, Deserialize,
-)]
+#[cfg(feature = "bitcoincore-rpc")]
+use bitcoincore_rpc::json::GetMempoolEntryResult;
+
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Result, Write};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct MempoolEntryFee {
     pub base: u64,
     pub descendant: u64,
     pub ancestor: u64,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MempoolEntry {
     pub vsize: u64,
     pub weight: Option<u64>,
@@ -25,10 +30,11 @@ pub struct MempoolEntry {
     pub ancestor_size: u64,
     pub fees: MempoolEntryFee,
     pub depends: Vec<SerializedTxid>,
-    #[serde(rename = "spentby")]
+    #[cfg_attr(feature = "serde", serde(rename = "spentby"))]
     pub spent_by: Vec<SerializedTxid>,
 }
 
+#[cfg(feature = "bitcoincore-rpc")]
 impl From<&GetMempoolEntryResult> for MempoolEntry {
     fn from(value: &GetMempoolEntryResult) -> Self {
         Self {
@@ -49,6 +55,7 @@ impl From<&GetMempoolEntryResult> for MempoolEntry {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for MempoolEntry {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         BorshSerialize::serialize(&self.vsize, writer)?;
@@ -79,6 +86,7 @@ impl BorshSerialize for MempoolEntry {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for MempoolEntry {
     fn deserialize_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let vsize = u64::deserialize_reader(reader)?;

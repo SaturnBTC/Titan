@@ -1,7 +1,7 @@
 use {
     bitcoin::{hashes::Hash, BlockHash},
     borsh::{BorshDeserialize, BorshSerialize},
-    titan_types::TransactionStatus,
+    titan_types_core::TransactionStatus,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

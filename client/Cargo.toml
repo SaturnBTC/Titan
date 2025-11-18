@@ -1,6 +1,6 @@
 [package]
 name = "titan-client"
-version = "0.1.50"
+version.workspace = true
 edition = "2021"
 
 authors = ["Marcos <mcolladomcm@email.com>"]
@@ -12,7 +12,8 @@ categories = []
 keywords = ["bitcoin", "indexer", "runes", "rust"]
 
 [dependencies]
-titan-types = { workspace = true }
+titan-types-core = { workspace = true, features = ["serde"] }
+titan-types-api = { workspace = true }
 
 bitcoin = { workspace = true }
 serde = { workspace = true }

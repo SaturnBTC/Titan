@@ -5,12 +5,17 @@ use {
         hashes::Hash,
         BlockHash, CompactTarget, TxMerkleNode,
     },
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Serialize},
-    std::io::{Read, Result, Write},
 };
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Result, Write};
+
+#[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Block {
     pub height: u64,
     pub header: Header,
@@ -18,6 +23,7 @@ pub struct Block {
     pub etched_runes: Vec<RuneId>,
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for Block {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         // 1) Serialize `height`
@@ -63,6 +69,7 @@ impl BorshSerialize for Block {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for Block {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         // 1) Deserialize `height`

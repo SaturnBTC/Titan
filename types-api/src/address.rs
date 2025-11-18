@@ -1,7 +1,7 @@
 use {
-    crate::{transaction::TransactionStatus, RuneAmount, SerializedOutPoint, SpentStatus, TxOut},
     bitcoin::Txid,
     serde::{Deserialize, Serialize},
+    titan_types_core::{RuneAmount, SerializedOutPoint, SpentStatus, TransactionStatus, TxOut},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

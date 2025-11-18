@@ -2,7 +2,7 @@ use {
     super::*,
     crate::models::Inscription,
     bitcoin::Transaction,
-    titan_types::{InscriptionId, SerializedTxid},
+    titan_types_core::{InscriptionId, SerializedTxid},
 };
 
 pub fn index_rune_icon(

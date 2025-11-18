@@ -6,8 +6,8 @@ use {
     bitcoin::ScriptBuf,
     rustc_hash::FxHashMap as HashMap,
     std::sync::Arc,
-    titan_types::RuneId,
-    titan_types::{InscriptionId, Rune, SerializedOutPoint, SerializedTxid, TxOut},
+    titan_types_core::RuneId,
+    titan_types_core::{InscriptionId, Rune, SerializedOutPoint, SerializedTxid, TxOut},
     tracing::info,
 };
 

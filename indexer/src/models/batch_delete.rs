@@ -1,7 +1,7 @@
 use {
     crate::models::TransactionStateChangeInput,
     std::{collections::HashSet, fmt::Display},
-    titan_types::{SerializedOutPoint, SerializedTxid},
+    titan_types_core::{SerializedOutPoint, SerializedTxid},
 };
 
 #[derive(Debug, Default, Clone)]

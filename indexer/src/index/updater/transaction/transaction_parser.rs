@@ -8,11 +8,10 @@ use {
     },
     bitcoin::{consensus::encode, OutPoint, Transaction},
     bitcoincore_rpc::{Client, RpcApi},
-    ordinals::{Artifact, Edict, Height, Runestone},
+    ordinals::{Artifact, Edict, Runestone},
     rustc_hash::FxHashMap as HashMap,
     thiserror::Error,
-    titan_types::Rune,
-    titan_types::{RuneAmount, RuneId, SerializedOutPoint, SpentStatus, TxOut},
+    titan_types_core::{Height, Rune, RuneAmount, RuneId, SerializedOutPoint, SpentStatus, TxOut},
 };
 
 #[derive(Debug, Error)]
@@ -197,7 +196,7 @@ impl<'client> TransactionParser<'client> {
                     let output = usize::try_from(output).unwrap();
                     assert!(output <= tx.output.len());
 
-                    // Convert ordinals::RuneId to titan_types::RuneId
+                    // Convert ordinals::RuneId to titan_types_core::RuneId
                     let id = if id.block == 0 && id.tx == 0 {
                         // If the edict did not specify an id, use the etched id (if available)
                         let Some((id, ..)) = etched else {

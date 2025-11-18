@@ -1,12 +1,15 @@
 use std::str::FromStr;
 
 use bitcoin::{hashes::Hash, OutPoint, Txid};
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::SerializedTxid;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, BorshSerialize, BorshDeserialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct SerializedOutPoint([u8; 36]);
 
 impl SerializedOutPoint {
@@ -105,6 +108,7 @@ impl FromStr for SerializedOutPoint {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for SerializedOutPoint {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -119,6 +123,7 @@ impl Serialize for SerializedOutPoint {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for SerializedOutPoint {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -127,7 +132,7 @@ impl<'de> Deserialize<'de> for SerializedOutPoint {
         use serde::de::{self, MapAccess, Visitor};
         use std::fmt;
 
-        #[derive(Deserialize)]
+        #[derive(serde::Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
         enum Field {
             Txid,
@@ -179,7 +184,8 @@ impl<'de> Deserialize<'de> for SerializedOutPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::{hashes::Hash, OutPoint, Txid};
+    use bitcoin::{hashes::Hash, OutPoint};
+    #[cfg(feature = "borsh")]
     use borsh::{BorshDeserialize, BorshSerialize};
 
     /// Helper function to test borsh serialization roundtrip

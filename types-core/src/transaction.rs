@@ -1,15 +1,18 @@
 use {
     crate::{tx_in::TxIn, tx_out::SpentStatus, TxOut},
     bitcoin::{constants::WITNESS_SCALE_FACTOR, BlockHash, Txid},
-    serde::{Deserialize, Serialize},
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TransactionStatus {
     pub confirmed: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub block_height: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub block_hash: Option<BlockHash>,
 }
 
@@ -31,7 +34,8 @@ impl TransactionStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Transaction {
     pub txid: Txid,
     pub version: i32,

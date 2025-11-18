@@ -11,7 +11,8 @@ use std::{
 
 use serde_json;
 use thiserror::Error;
-use titan_types::{Event, TcpSubscriptionRequest};
+use titan_types_api::TcpSubscriptionRequest;
+use titan_types_core::Event;
 use tracing::{debug, error, info, warn};
 
 use crate::tcp::reconnection::ReconnectionManager;
@@ -562,7 +563,7 @@ mod tests {
     use std::net::{SocketAddr, TcpListener};
     use std::thread;
     use std::time::Duration;
-    use titan_types::EventType;
+    use titan_types_core::EventType;
 
     // Helper function to create a test TCP server
     fn start_test_server(ready_tx: std::sync::mpsc::Sender<SocketAddr>) -> JoinHandle<()> {

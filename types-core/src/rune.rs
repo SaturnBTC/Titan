@@ -1,14 +1,19 @@
 use {
     bitcoin::{blockdata::constants::SUBSIDY_HALVING_INTERVAL, network::Network},
-    borsh::{BorshDeserialize, BorshSerialize},
-    ordinals::Height,
-    serde::{Deserialize, Deserializer, Serialize, Serializer},
+    crate::Height,
     std::{
         fmt::{self, Display, Formatter},
-        io::{Read, Write},
         str::FromStr,
     },
 };
+
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Write};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Default, Debug, PartialEq, Copy, Clone, PartialOrd, Ord, Eq)]
 pub struct Rune(pub u128);
@@ -195,6 +200,7 @@ impl FromStr for Rune {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Rune {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -204,22 +210,25 @@ impl Serialize for Rune {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Rune {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = <String as Deserialize>::deserialize(deserializer)?;
+        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
         Self::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for Rune {
     fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         BorshSerialize::serialize(&self.0, writer)
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for Rune {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let value = u128::deserialize_reader(reader)?;
@@ -437,6 +446,7 @@ mod tests {
         case(Network::Regtest, 1, "ZZXZUDIVTVQA");
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn serde() {
         let rune = Rune(0);
@@ -601,6 +611,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "borsh")]
     #[test]
     fn borsh_roundtrip() {
         let rune = Rune(42);

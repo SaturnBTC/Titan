@@ -3,11 +3,11 @@ use std::{num::NonZeroUsize, sync::Arc};
 use bitcoin::{consensus, BlockHash, ScriptBuf, Transaction};
 use clru::CLruCache;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use titan_types::{
+use titan_types_core::{
     Block, Event, Location, SerializedOutPoint, SerializedTxid, SpenderReference, SpentStatus,
     TxOut,
 };
-use titan_types::{Rune, RuneId};
+use titan_types_core::{Rune, RuneId};
 use tracing::info;
 
 use crate::{
@@ -630,7 +630,7 @@ impl TransactionStore for BlockCache {
 
     fn set_inscription(
         &mut self,
-        id: titan_types::InscriptionId,
+        id: titan_types_core::InscriptionId,
         inscription: crate::models::Inscription,
     ) {
         self.update.inscriptions.insert(id, inscription);

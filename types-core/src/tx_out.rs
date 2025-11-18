@@ -1,17 +1,23 @@
 use {
-    crate::{rune::RuneAmount, SerializedTxid},
+    crate::{rune_amount::RuneAmount, SerializedTxid},
     bitcoin::ScriptBuf,
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Serialize},
-    std::io::{Read, Result, Write},
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Result, Write};
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SpenderReference {
     pub txid: SerializedTxid,
     pub vin: u32,
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for SpenderReference {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         BorshSerialize::serialize(&self.txid, writer)?;
@@ -20,6 +26,7 @@ impl BorshSerialize for SpenderReference {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for SpenderReference {
     fn deserialize_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let txid = SerializedTxid::deserialize_reader(reader)?;
@@ -28,7 +35,8 @@ impl BorshDeserialize for SpenderReference {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub enum SpentStatus {
     Unspent,
     Spent(SpenderReference),
@@ -36,6 +44,7 @@ pub enum SpentStatus {
 }
 
 // Intermediate structure for JSON serialization
+#[cfg(feature = "serde")]
 #[derive(Clone, Serialize, Deserialize)]
 struct SpentStatusJson {
     spent: bool,
@@ -43,6 +52,7 @@ struct SpentStatusJson {
     vin: Option<SpenderReference>,
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for SpentStatus {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -66,6 +76,7 @@ impl Serialize for SpentStatus {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for SpentStatus {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -84,7 +95,8 @@ impl<'de> Deserialize<'de> for SpentStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxOut {
     pub runes: Vec<RuneAmount>,
     pub risky_runes: Vec<RuneAmount>,
@@ -99,6 +111,7 @@ impl TxOut {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for TxOut {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         BorshSerialize::serialize(&self.value, writer)?;
@@ -112,6 +125,7 @@ impl BorshSerialize for TxOut {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for TxOut {
     fn deserialize_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let value = u64::deserialize_reader(reader)?;
@@ -136,7 +150,7 @@ impl BorshDeserialize for TxOut {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{rune::RuneAmount, rune_id::RuneId};
+    use crate::{rune_amount::RuneAmount, rune_id::RuneId};
     use borsh::{BorshDeserialize, BorshSerialize};
 
     /// Helper function to test borsh serialization roundtrip

@@ -1,17 +1,20 @@
 use {
     crate::SerializedTxid,
-    borsh::{BorshDeserialize, BorshSerialize},
     core::str,
-    serde::{Deserialize, Serialize},
     std::{
         fmt::{self, Display, Formatter},
         str::FromStr,
     },
 };
 
-#[derive(
-    Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, BorshDeserialize, BorshSerialize,
-)]
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshDeserialize, BorshSerialize))]
 pub struct InscriptionId {
     pub txid: SerializedTxid,
     pub index: u32,

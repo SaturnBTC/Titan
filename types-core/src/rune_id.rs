@@ -1,7 +1,9 @@
 use std::{fmt::Display, str::FromStr};
 
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, Ord, PartialOrd, Pod, Zeroable)]
@@ -52,7 +54,7 @@ impl RuneId {
         }
     }
 
-    /// Calculate the delta between two RuneIds (same as ordinals implementation)
+    /// Calculate the delta between two RuneIds
     pub fn delta(self, next: RuneId) -> Option<(u128, u128)> {
         let block = next.block.checked_sub(self.block)?;
 
@@ -65,7 +67,7 @@ impl RuneId {
         Some((block.into(), tx.into()))
     }
 
-    /// Calculate the next RuneId given deltas (same as ordinals implementation)
+    /// Calculate the next RuneId given deltas
     pub fn next(self, block: u128, tx: u128) -> Option<RuneId> {
         Some(RuneId::new(
             self.block.checked_add(block.try_into().ok()?)?,
@@ -84,6 +86,7 @@ impl Display for RuneId {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for RuneId {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         borsh::BorshSerialize::serialize(&self.block, writer)?;
@@ -92,6 +95,7 @@ impl BorshSerialize for RuneId {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for RuneId {
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let block = <u64 as borsh::BorshDeserialize>::deserialize(buf)?;
@@ -125,6 +129,7 @@ impl FromStr for RuneId {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for RuneId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -134,6 +139,7 @@ impl Serialize for RuneId {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for RuneId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -212,6 +218,7 @@ mod tests {
         assert_eq!("0:1".parse::<RuneId>().unwrap(), RuneId::new(0, 1));
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn serde() {
         let rune_id = RuneId::new(1, 2);
@@ -243,6 +250,7 @@ mod tests {
         assert_eq!((a, b), (c, d));
     }
 
+    #[cfg(feature = "borsh")]
     #[test]
     fn borsh_roundtrip() {
         let rune_id = RuneId::new(840000, 1);

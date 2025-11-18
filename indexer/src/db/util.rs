@@ -1,7 +1,7 @@
 use bitcoin::ScriptBuf;
 use std::convert::TryInto;
 
-use titan_types::{RuneId, SerializedOutPoint};
+use titan_types_core::{RuneId, SerializedOutPoint};
 
 /// Creates an `OutPoint` from a 36-byte slice.
 /// Returns an error if the slice is not exactly 36 bytes long.

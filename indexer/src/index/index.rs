@@ -21,12 +21,10 @@ use {
         thread::{self},
         time::Duration,
     },
-    titan_types::Rune,
-    titan_types::RuneId,
-    titan_types::{
-        AddressData, AddressTxOut, Block, Event, InscriptionId, MempoolEntry, Pagination,
-        PaginationResponse, RuneAmount, SerializedOutPoint, SerializedTxid, Transaction,
-        TransactionStatus, TxOut,
+    titan_types_api::{AddressData, AddressTxOut, Pagination, PaginationResponse},
+    titan_types_core::{
+        Block, Event, InscriptionId, MempoolEntry, Rune, RuneAmount, RuneId, SerializedOutPoint,
+        SerializedTxid, Transaction, TransactionStatus, TxOut,
     },
     tokio::{runtime::Runtime, sync::mpsc::Sender},
     tracing::{error, info, warn},

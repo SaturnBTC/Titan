@@ -1,6 +1,6 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use titan_types::SerializedTxid;
+use titan_types_core::SerializedTxid;
 
 #[derive(Debug, Default, Clone)]
 pub struct TransactionUpdate {

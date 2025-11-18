@@ -1,13 +1,18 @@
 use {
-    crate::rune_type::Rune,
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Deserializer, Serialize, Serializer},
+    crate::rune::Rune,
     std::{
         fmt::{self, Display, Formatter},
-        io::{Read, Write},
         str::FromStr,
     },
 };
+
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Write};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Copy, Clone, Debug, PartialEq, Ord, PartialOrd, Eq, Default)]
 pub struct SpacedRune {
@@ -73,6 +78,7 @@ impl Display for SpacedRune {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for SpacedRune {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -82,16 +88,18 @@ impl Serialize for SpacedRune {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for SpacedRune {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = <String as Deserialize>::deserialize(deserializer)?;
+        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
         Self::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for SpacedRune {
     fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         BorshSerialize::serialize(&self.rune.0, writer)?;
@@ -99,6 +107,7 @@ impl BorshSerialize for SpacedRune {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for SpacedRune {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let rune_value = u128::deserialize_reader(reader)?;
@@ -116,7 +125,7 @@ pub enum SpacedRuneError {
     TrailingSpacer,
     DoubleSpacer,
     Character(char),
-    Rune(crate::rune_type::RuneError),
+    Rune(crate::rune::RuneError),
 }
 
 impl Display for SpacedRuneError {
@@ -191,6 +200,7 @@ mod tests {
         case("A•BC", "ABC", 0b1);
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn serde() {
         let spaced_rune = SpacedRune {
@@ -205,6 +215,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "borsh")]
     #[test]
     fn borsh_roundtrip() {
         let spaced_rune = SpacedRune {

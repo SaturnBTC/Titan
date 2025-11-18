@@ -9,11 +9,11 @@ use {
     bitcoin::{consensus, hex::HexToArrayError, BlockHash, ScriptBuf},
     rustc_hash::FxHashMap as HashMap,
     thiserror::Error,
-    titan_types::RuneId,
-    titan_types::{
-        Block, InscriptionId, MempoolEntry, Pagination, PaginationResponse, Rune,
-        SerializedOutPoint, SerializedTxid, SpenderReference, SpentStatus, Transaction,
-        TransactionStatus, TxOut,
+    titan_types_api::{Pagination, PaginationResponse},
+    titan_types_core::RuneId,
+    titan_types_core::{
+        Block, InscriptionId, MempoolEntry, Rune, SerializedOutPoint, SerializedTxid,
+        SpenderReference, SpentStatus, Transaction, TransactionStatus, TxOut,
     },
 };
 

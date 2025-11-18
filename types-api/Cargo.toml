@@ -1,0 +1,24 @@
+[package]
+name = "titan-types-api"
+version.workspace = true
+edition = "2021"
+
+authors = ["Marcos <mcolladomcm@email.com>"]
+license = "MIT OR Apache-2.0"
+description = "API endpoint request/response types for Titan bitcoin and runes indexer"
+repository = "https://github.com/SaturnBTC/titan"
+readme = "README.md"
+categories = []
+keywords = ["bitcoin", "indexer", "runes", "rust", "api"]
+
+[dependencies]
+titan-types-core = { workspace = true, features = ["serde", "borsh"] }
+bitcoin = { workspace = true }
+borsh = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { version = "1.12.1", features = ["borsh", "serde"], default-features = false }
+
+[dev-dependencies]
+serde_json = "1.0"
+

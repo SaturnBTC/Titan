@@ -1,9 +1,12 @@
 use bitcoin::{ScriptBuf, Sequence, Witness};
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::{RuneAmount, SerializedOutPoint, TxOut};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PreviousOutputData {
     pub value: u64,
     pub runes: Vec<RuneAmount>,
@@ -22,13 +25,14 @@ impl From<TxOut> for PreviousOutputData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxIn {
     pub previous_output: SerializedOutPoint,
     pub script_sig: ScriptBuf,
     pub sequence: Sequence,
     pub witness: Witness,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub previous_output_data: Option<PreviousOutputData>,
 }
 

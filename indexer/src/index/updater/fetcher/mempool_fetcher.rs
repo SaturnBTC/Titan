@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use threadpool::ThreadPool;
-use titan_types::SerializedTxid;
+use titan_types_core::SerializedTxid;
 use tracing::error;
 
 use crate::bitcoin_rpc::{RpcClientError, RpcClientPool};

@@ -1,11 +1,13 @@
 use bitcoin::{hashes::Hash, Txid};
+use std::{fmt::Display, str::FromStr};
+
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "borsh")]
+use std::io::{Read, Result, Write};
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Display,
-    io::{Read, Result, Write},
-    str::FromStr,
-};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct SerializedTxid(pub [u8; 32]);
@@ -110,6 +112,7 @@ impl FromStr for SerializedTxid {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshSerialize for SerializedTxid {
     fn serialize<W: Write>(&self, writer: &mut W) -> Result<()> {
         // Serialize the raw 32 bytes
@@ -117,6 +120,7 @@ impl BorshSerialize for SerializedTxid {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for SerializedTxid {
     fn deserialize_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let bytes = <[u8; 32]>::deserialize_reader(reader)?;
@@ -124,6 +128,7 @@ impl BorshDeserialize for SerializedTxid {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for SerializedTxid {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -137,6 +142,7 @@ impl Serialize for SerializedTxid {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for SerializedTxid {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -151,6 +157,7 @@ impl<'de> Deserialize<'de> for SerializedTxid {
 mod tests {
     use super::*;
     use bitcoin::{hashes::Hash, Txid};
+    #[cfg(feature = "borsh")]
     use borsh::{BorshDeserialize, BorshSerialize};
 
     /// Helper function to test borsh serialization roundtrip

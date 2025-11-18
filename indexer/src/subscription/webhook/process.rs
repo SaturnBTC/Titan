@@ -6,7 +6,7 @@ use {
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
     thiserror::Error,
-    titan_types::{Event, EventType},
+    titan_types_core::{Event, EventType},
     tokio::time::sleep,
     tracing::error,
 };

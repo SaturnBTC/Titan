@@ -1,19 +1,21 @@
 [workspace]
 resolver = "2"
 
-members = ["indexer", "types", "client"]
+members = ["indexer", "types-core", "types-api", "client"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.3.0"
 
 [workspace.dependencies]
 # workspace
-titan-types = { version = "0.1.33" }
+titan-types-core = { path = "types-core", version = "0.3.0" }
+titan-types-api = { path = "types-api", version = "0.3.0" }
 
 async-trait = "0.1.86"
 axum = "0.8.1"
 axum-server = "0.7.1"
-bitcoin = { version = "0.32.5", features = ["serde"] }
+bitcoin = { version = "=0.32.5", features = ["serde"] }
+bitcoin-io = { version = "=0.1.2" }
 bitcoincore-rpc = "0.19.0"
 borsh = { version = "1.5.3", features = ["derive"] }
 brotli = "7.0.0"

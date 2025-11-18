@@ -2,14 +2,17 @@ use {
     crate::rune_id::RuneId,
     crate::{MempoolEntry, SerializedOutPoint, SerializedTxid},
     bitcoin::BlockHash,
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Serialize},
     std::fmt,
 };
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
-)]
+#[cfg(feature = "borsh")]
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub enum EventType {
     RuneEtched,
     RuneBurned,
@@ -73,7 +76,8 @@ impl Into<String> for EventType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Location {
     pub mempool: bool,
     pub block_height: Option<u64>,
@@ -110,8 +114,9 @@ impl From<Option<u64>> for Location {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum Event {
     RuneEtched {
         location: Location,
@@ -119,21 +124,21 @@ pub enum Event {
         txid: SerializedTxid,
     },
     RuneBurned {
-        #[serde(with = "crate::serde_str")]
+        #[cfg_attr(feature = "serde", serde(with = "crate::serde_str"))]
         amount: u128,
         location: Location,
         rune_id: RuneId,
         txid: SerializedTxid,
     },
     RuneMinted {
-        #[serde(with = "crate::serde_str")]
+        #[cfg_attr(feature = "serde", serde(with = "crate::serde_str"))]
         amount: u128,
         location: Location,
         rune_id: RuneId,
         txid: SerializedTxid,
     },
     RuneTransferred {
-        #[serde(with = "crate::serde_str")]
+        #[cfg_attr(feature = "serde", serde(with = "crate::serde_str"))]
         amount: u128,
         location: Location,
         outpoint: SerializedOutPoint,
