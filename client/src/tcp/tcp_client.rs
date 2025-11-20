@@ -315,8 +315,6 @@ impl AsyncTcpClient {
                                                         awaiting_pong = false;
                                                         last_pong_time = std::time::Instant::now();
                                                         debug!("Received PONG");
-                                                    } else {
-                                                        warn!("Received unexpected PONG");
                                                     }
                                                 } else {
                                                     // Check if message size exceeds limit *before* parsing JSON

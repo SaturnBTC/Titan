@@ -158,6 +158,16 @@ impl TcpClient {
             ))
         })?;
 
+        // If there is an active thread, signal it to shutdown and join it
+        if let Some(handle) = worker_lock.take() {
+            info!("Stopping existing subscription thread before re-subscribing...");
+            self.shutdown_flag.store(true, Ordering::SeqCst);
+            match handle.join() {
+                Ok(_) => info!("Successfully joined existing worker thread"),
+                Err(e) => error!("Failed to join existing worker thread: {:?}", e),
+            }
+        }
+
         // Reset shutdown flag in case it was previously set
         self.shutdown_flag.store(false, Ordering::SeqCst);
 
@@ -425,8 +435,6 @@ fn subscribe(
                                             awaiting_pong = false;
                                             last_pong_time = std::time::Instant::now();
                                             debug!("Received PONG");
-                                        } else {
-                                            warn!("Received unexpected PONG");
                                         }
                                     } else {
                                         // Check if message size exceeds limit *before* parsing JSON
@@ -790,6 +798,61 @@ mod tests {
 
         // Verify we no longer have an active thread
         assert!(!client.has_active_thread());
+    }
+
+    #[test]
+    fn test_resubscribe_stops_previous_thread() {
+        // Use short timeouts so the test runs quickly even if connections fail
+        let config = TcpClientConfig {
+            connection_timeout: Duration::from_millis(100),
+            max_reconnect_attempts: Some(2),
+            base_reconnect_interval: Duration::from_millis(50),
+            ..TcpClientConfig::default()
+        };
+        let client = TcpClient::new(config);
+
+        // First subscription to a non-existent server; this will start a worker thread
+        let _rx1 = client
+            .subscribe(
+                "127.0.0.1:1".to_string(),
+                TcpSubscriptionRequest {
+                    subscribe: vec![EventType::TransactionsAdded],
+                },
+            )
+            .unwrap();
+
+        // Give the worker thread a moment to start
+        thread::sleep(Duration::from_millis(50));
+        assert!(
+            client.has_active_thread(),
+            "Expected an active worker thread after first subscribe"
+        );
+
+        // Second subscription should signal the previous worker to shut down, join it,
+        // and then start a new worker thread.
+        let _rx2 = client
+            .subscribe(
+                "127.0.0.1:1".to_string(),
+                TcpSubscriptionRequest {
+                    subscribe: vec![EventType::TransactionsAdded],
+                },
+            )
+            .unwrap();
+
+        // After re-subscribing we should still have exactly one active worker thread,
+        // and the call should not hang (which would indicate the old thread didn't stop).
+        assert!(
+            client.has_active_thread(),
+            "Expected an active worker thread after re-subscribing"
+        );
+
+        // Finally, shutting down the client should cleanly join the active worker
+        let joined = client.shutdown_and_join();
+        assert!(joined, "Expected worker thread to be joined after shutdown");
+        assert!(
+            !client.has_active_thread(),
+            "Expected no active worker thread after shutdown"
+        );
     }
 
     // Helper function to create a test TCP server that handles ping/pong
