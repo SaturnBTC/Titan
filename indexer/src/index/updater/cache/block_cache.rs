@@ -347,10 +347,6 @@ impl BlockCache {
         }
     }
 
-    pub fn should_flush(&self, max_size: usize) -> bool {
-        self.update.blocks.len() >= max_size
-    }
-
     pub fn flush(&mut self) -> Result<()> {
         info!(
             "Block cache: outpoints: {:?}, spent_outpoints: {:?}, blocks: {:?}",
