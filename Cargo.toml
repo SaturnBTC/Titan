@@ -4,12 +4,12 @@ resolver = "2"
 members = ["indexer", "types-core", "types-api", "client"]
 
 [workspace.package]
-version = "1.3.2"
+version = "1.3.3"
 
 [workspace.dependencies]
 # workspace
-titan-types-core = { path = "types-core", version = "1.3.2" }
-titan-types-api = { path = "types-api", version = "1.3.2" }
+titan-types-core = { path = "types-core", version = "1.3.3" }
+titan-types-api = { path = "types-api", version = "1.3.3" }
 
 async-trait = "0.1.86"
 axum = "0.8.1"
