@@ -35,9 +35,7 @@ Detailed Setup: Follow the [Setup Instructions](../SetupInstructions.md) for ste
 Install the package via npm or yarn:
 
 ```bash
-npm install titan-client
-# or
-yarn add titan-client
+npm i @titanbtcio/sdk
 ```
 
 ## Usage
@@ -49,7 +47,7 @@ The HTTP client uses axios to communicate with the Titan Indexer's REST API endp
 #### Example
 
 ```typescript
-import { TitanHttpClient } from 'titan-client';
+import { TitanHttpClient } from "@titanbtcio/sdk";
 
 async function testHttpClient() {
   // Create an HTTP client instance.
@@ -121,7 +119,7 @@ The TCP client allows you to subscribe to real-time events from the Titan Indexe
 #### Example
 
 ```typescript
-import { TitanTcpClient } from 'titan-client';
+import { TitanTcpClient } from '@titanbtcio/sdk';
 
 function testTcpSubscription() {
   const tcpClient = new TitanTcpClient('localhost', 4000, {
@@ -161,31 +159,34 @@ testTcpSubscription();
 - **getTip()**: `Promise<BlockTip>`
   Retrieves the current best block tip.
 
-- **getBlock(query: string)**: `Promise<any>`
+- **getBlock(query: string)**: `Promise<Block | undefined>`
   Fetches a block by its height or hash.
 
-- **getBlockHashByHeight(height: number)**: `Promise<string>`
+- **getBlockHashByHeight(height: number)**: `Promise<string | undefined>`
   Returns the block hash for a given height.
 
-- **getBlockTxids(query: string)**: `Promise<string[]>`
+- **getBlockTxids(query: string)**: `Promise<string[] | undefined>`
   Retrieves a list of transaction IDs for a block.
 
 - **getAddress(address: string)**: `Promise<AddressData>`
   Retrieves address data including balance and transaction outputs.
 
-- **getTransaction(txid: string)**: `Promise<Transaction>`
+- **getTransaction(txid: string)**: `Promise<Transaction | undefined>`
   Retrieves detailed information for a given transaction.
 
-- **getTransactionRaw(txid: string)**: `Promise<Uint8Array>`
+- **getTransactionRaw(txid: string)**: `Promise<Uint8Array | undefined>`
   Retrieves the raw binary data of a transaction.
 
-- **getTransactionHex(txid: string)**: `Promise<string>`
+- **getTransactionHex(txid: string)**: `Promise<string | undefined>`
   Retrieves the raw transaction hex.
+
+- **getTransactionStatus(txid: string)**: `Promise<TransactionStatus | undefined>`
+  Retrieves transaction status.
 
 - **sendTransaction(txHex: string)**: `Promise<string>`
   Broadcasts a raw transaction hex to the network.
 
-- **getOutput(outpoint: string)**: `Promise<TxOutEntry>`
+- **getOutput(txid: string, vout: number)**: `Promise<TxOutEntry | undefined>`
   Retrieves data for a specific transaction output.
 
 - **getInscription(inscriptionId: string)**: `Promise<{ headers: any; data: Uint8Array }>`
@@ -194,25 +195,28 @@ testTcpSubscription();
 - **getRunes(pagination?: Pagination)**: `Promise<PaginationResponse<RuneResponse>>`
   Retrieves a paginated list of runes.
 
-- **getRune(rune: string)**: `Promise<RuneResponse>`
+- **getRune(rune: string)**: `Promise<RuneResponse | undefined>`
   Retrieves data for a specific rune.
 
-- **getRuneTransactions(rune: string, pagination?: Pagination)**: `Promise<PaginationResponse<string>>`
+- **getRuneTransactions(rune: string, pagination?: Pagination)**: `Promise<PaginationResponse<string> | undefined>`
   Retrieves a paginated list of transaction IDs involving a specific rune.
 
 - **getMempoolTxids()**: `Promise<string[]>`
   Retrieves the transaction IDs currently in the mempool.
 
-- **getMempoolEntry(txid: string)**: `Promise<MempoolEntry>`
+- **getMempoolEntry(txid: string)**: `Promise<MempoolEntry | undefined>`
   Retrieves a specific mempool entry by its txid.
 
-- **getMempoolEntries(txids: string[])**: `Promise<Map<string, MempoolEntry>>`
+- **getMempoolEntries(txids: string[])**: `Promise<Map<string, MempoolEntry | undefined>>`
   Retrieves multiple mempool entries by their txids.
+
+- **getMempoolEntriesWithAncestors(txids: string[])**: `Promise<Map<string, MempoolEntry>>`
+  Retrieves multiple mempool entries with ancestors by their txids.
 
 - **getAllMempoolEntries()**: `Promise<Map<string, MempoolEntry>>`
   Retrieves all mempool entries.
 
-- **getSubscription(id: string)**: `Promise<Subscription>`
+- **getSubscription(id: string)**: `Promise<Subscription | undefined>`
   Retrieves a subscription by its ID.
 
 - **listSubscriptions()**: `Promise<Subscription[]>`
